@@ -321,6 +321,7 @@ export default function App() {
   function logout() { setIsManager(false); saveAuth(false); showToast("Logged out"); }
 
 
+  function switchCategory(cat) {
     setActiveCategory(cat); setView("list");
     setSearch(""); setFilterPack("All"); setFilterContainer("All"); setSortBy("name");
   }
