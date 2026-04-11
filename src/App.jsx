@@ -6,8 +6,13 @@ const CONTAINER_TYPES = ["Can", "Bottle"];
 const WINE_TYPES     = ["Red", "White", "Rosé", "Sparkling", "Other"];
 const THEME_KEY      = "beer-pricing-theme";
 
-function loadTheme() { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; } }
-function saveTheme(t) { try { localStorage.setItem(THEME_KEY, t); } catch {} }
+const MANAGER_PIN = "3018";
+const AUTH_KEY    = "beer-pricing-auth";
+
+function loadAuth() { try { return localStorage.getItem(AUTH_KEY) === "true"; } catch { return false; } }
+function saveAuth(v) { try { localStorage.setItem(AUTH_KEY, v ? "true" : "false"); } catch {} }
+
+
 
 // Map DB snake_case → app camelCase
 function fromDB(row) {
@@ -248,6 +253,11 @@ export default function App() {
   const [toast,setToast]                       = useState(null);
   const [confirmDelete,setConfirmDelete]       = useState(null);
   const [themeMode,setThemeMode]               = useState(loadTheme);
+  const [isManager,setIsManager]               = useState(loadAuth);
+  const [showPinModal,setShowPinModal]         = useState(false);
+  const [pinInput,setPinInput]                 = useState("");
+  const [pinError,setPinError]                 = useState(false);
+  const [pendingAction,setPendingAction]       = useState(null);
   const [showExportMenu,setShowExportMenu]     = useState(false);
   const [importPreview,setImportPreview]       = useState(null);
   const [showDataModal,setShowDataModal]       = useState(false);
@@ -291,18 +301,39 @@ export default function App() {
 
   function showToast(msg, type="success") { setToast({msg,type}); setTimeout(()=>setToast(null),2500); }
 
-  function switchCategory(cat) {
+  function requireManager(action) {
+    if (isManager) { action(); return; }
+    setPendingAction(()=>action);
+    setPinInput(""); setPinError(false);
+    setShowPinModal(true);
+  }
+
+  function submitPin() {
+    if (pinInput === MANAGER_PIN) {
+      setIsManager(true); saveAuth(true);
+      setShowPinModal(false);
+      if (pendingAction) { pendingAction(); setPendingAction(null); }
+    } else {
+      setPinError(true); setPinInput("");
+    }
+  }
+
+  function logout() { setIsManager(false); saveAuth(false); showToast("Logged out"); }
+
+
     setActiveCategory(cat); setView("list");
     setSearch(""); setFilterPack("All"); setFilterContainer("All"); setSortBy("name");
   }
 
-  function openAdd() { setForm(isWine?{...emptyWineForm}:{...emptyBeerForm}); setEditId(null); setView("add"); }
+  function openAdd() { requireManager(()=>{ setForm(isWine?{...emptyWineForm}:{...emptyBeerForm}); setEditId(null); setView("add"); }); }
 
   function openEdit(item) {
-    setForm({ name:item.name, packSize:item.packSize||"Single", containerType:item.containerType||"Bottle",
-      price:String(item.price), deposit:item.deposit?String(item.deposit):"",
-      location:item.location||"", wineType:item.wineType||"Other", outOfStock:item.outOfStock||false });
-    setEditId(item.id); setView("edit");
+    requireManager(()=>{
+      setForm({ name:item.name, packSize:item.packSize||"Single", containerType:item.containerType||"Bottle",
+        price:String(item.price), deposit:item.deposit?String(item.deposit):"",
+        location:item.location||"", wineType:item.wineType||"Other", outOfStock:item.outOfStock||false });
+      setEditId(item.id); setView("edit");
+    });
   }
 
   async function handleSave() {
@@ -336,11 +367,13 @@ export default function App() {
   }
 
   async function toggleOutOfStock(id) {
-    const item = items.find(i=>i.id===id);
-    if (!item) return;
-    const updated = { ...item, outOfStock: !item.outOfStock };
-    const { error } = await supabase.from("items").update(toDB(updated)).eq("id",id);
-    if (error) showToast("Update failed","error");
+    requireManager(async ()=>{
+      const item = items.find(i=>i.id===id);
+      if (!item) return;
+      const updated = { ...item, outOfStock: !item.outOfStock };
+      const { error } = await supabase.from("items").update(toDB(updated)).eq("id",id);
+      if (error) showToast("Update failed","error");
+    });
   }
 
   async function bulkInsert(newItems) {
@@ -428,6 +461,11 @@ export default function App() {
           {/* sync indicator */}
           {syncing&&<div style={{ fontSize:11, color:T.subText, whiteSpace:"nowrap" }}>⏳ Syncing…</div>}
 
+          {/* manager lock/unlock */}
+          <button onClick={()=>isManager?logout():requireManager(()=>{})} style={{ background:T.cardBg, border:`1px solid ${T.cardBorder}`, borderRadius:8, width:38, height:38, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }} title={isManager?"Log out (manager)":"Manager login"}>
+            {isManager?"🔓":"🔒"}
+          </button>
+
           {/* theme */}
           <button onClick={()=>setThemeMode(m=>m==="dark"?"light":"dark")} style={{ background:T.cardBg, border:`1px solid ${T.cardBorder}`, borderRadius:8, width:38, height:38, fontSize:18, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             {isDark?"☀️":"🌙"}
@@ -502,6 +540,31 @@ export default function App() {
 
       {/* ── TOAST ── */}
       {toast&&<div style={{ position:"fixed", bottom:24, left:"50%", transform:"translateX(-50%)", padding:"12px 24px", borderRadius:30, color:"#fff", fontWeight:600, fontSize:14, zIndex:999, boxShadow:"0 4px 20px rgba(0,0,0,0.5)", fontFamily:"inherit", whiteSpace:"nowrap", background:toast.type==="error"?"#e74c3c":"#27ae60" }}>{toast.msg}</div>}
+
+      {/* ── PIN MODAL ── */}
+      {showPinModal&&(
+        <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", zIndex:300, display:"flex", alignItems:"center", justifyContent:"center", padding:24 }}>
+          <div style={{ background:T.formCardBg, border:`1px solid ${T.formCardBorder}`, borderRadius:16, padding:28, width:"100%", maxWidth:300, textAlign:"center" }}>
+            <div style={{ fontSize:32, marginBottom:8 }}>🔒</div>
+            <div style={{ fontSize:18, fontWeight:700, color:T.text, marginBottom:6 }}>Manager Access</div>
+            <div style={{ fontSize:13, color:T.subText, marginBottom:20 }}>Enter the manager PIN to continue</div>
+            <input
+              type="password" inputMode="numeric" maxLength={4}
+              value={pinInput} onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
+              onKeyDown={e=>e.key==="Enter"&&submitPin()}
+              placeholder="••••"
+              autoFocus
+              style={{ width:"100%", background:T.inputBg, border:`2px solid ${pinError?"#e74c3c":T.inputBorder}`, borderRadius:10, padding:"14px", color:T.text, fontSize:28, fontFamily:"inherit", boxSizing:"border-box", textAlign:"center", letterSpacing:"0.3em", marginBottom:8 }}
+            />
+            {pinError&&<div style={{ fontSize:12, color:"#e74c3c", marginBottom:12 }}>Incorrect PIN, try again</div>}
+            {!pinError&&<div style={{ height:20, marginBottom:12 }}/>}
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>{setShowPinModal(false);setPendingAction(null);}} style={{ flex:1, padding:12, background:"transparent", border:`1px solid ${T.inputBorder}`, borderRadius:10, color:T.subText, fontSize:15, cursor:"pointer", fontFamily:"inherit" }}>Cancel</button>
+              <button onClick={submitPin} style={{ flex:2, padding:12, background:T.accent, border:"none", borderRadius:10, color:T.accentText, fontSize:15, fontWeight:700, cursor:"pointer", fontFamily:"inherit" }}>Unlock</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── CONFIRM DELETE ── */}
       {confirmDelete&&(
@@ -581,7 +644,7 @@ export default function App() {
               <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:T.sectionColor, margin:"18px 0 8px", opacity:0.8 }}>{pack}</div>
               {filtered.filter(b=>b.packSize===pack).map(item=>(
                 <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-                  <ItemCard item={item} T={T} isWine={false} onEdit={()=>openEdit(item)} onDelete={()=>setConfirmDelete({id:item.id,name:item.name})} onToggleStock={()=>toggleOutOfStock(item.id)}/>
+                  <ItemCard item={item} T={T} isWine={false} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
                 </SwipeRow>
               ))}
             </div>
@@ -592,14 +655,14 @@ export default function App() {
               <div style={{ fontSize:11, fontWeight:700, letterSpacing:"0.1em", textTransform:"uppercase", color:T.sectionColor, margin:"18px 0 8px", opacity:0.8 }}>{type}</div>
               {filtered.filter(b=>(b.wineType||"Other")===type).map(item=>(
                 <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-                  <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>setConfirmDelete({id:item.id,name:item.name})} onToggleStock={()=>toggleOutOfStock(item.id)}/>
+                  <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
                 </SwipeRow>
               ))}
             </div>
           ))}
           {isWine&&sortBy!=="type"&&filtered.map(item=>(
             <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-              <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>setConfirmDelete({id:item.id,name:item.name})} onToggleStock={()=>toggleOutOfStock(item.id)}/>
+              <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
             </SwipeRow>
           ))}
         </div>
