@@ -11,10 +11,8 @@ const AUTH_KEY    = "beer-pricing-auth";
 
 function loadAuth() { try { return localStorage.getItem(AUTH_KEY) === "true"; } catch { return false; } }
 function saveAuth(v) { try { localStorage.setItem(AUTH_KEY, v ? "true" : "false"); } catch {} }
-
-
-
-// Map DB snake_case → app camelCase
+function loadTheme() { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; } }
+function saveTheme(t) { try { localStorage.setItem(THEME_KEY, t); } catch {} }// Map DB snake_case → app camelCase
 function fromDB(row) {
   return {
     id:            row.id,
@@ -319,7 +317,6 @@ export default function App() {
   }
 
   function logout() { setIsManager(false); saveAuth(false); showToast("Logged out"); }
-
 
   function switchCategory(cat) {
     setActiveCategory(cat); setView("list");
