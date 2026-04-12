@@ -919,24 +919,27 @@ export default function App() {
               {/* ── MANAGER PIN SECTION ── */}
               <div style={{marginBottom:24}}>
                 <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// security.managerPin</div>
-                <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16}}>
+                <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#ff446644":DT.cardBorder}`,borderRadius:10,padding:16,transition:"border-color 0.3s"}}>
                   <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
                     <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Manager PIN</div>
-                    <span style={{fontSize:10,padding:"3px 8px",background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`,borderRadius:4,letterSpacing:"0.06em"}}>ACTIVE</span>
+                    <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?"#ff446615":`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?"#ff446644":DT.green+"44"}`,borderRadius:4,letterSpacing:"0.06em",transition:"all 0.3s"}}>
+                      {managerDisabled?"DISABLED":"ACTIVE"}
+                    </span>
                   </div>
-                  <div style={{fontSize:12,color:DT.subText,marginBottom:14}}>Current PIN: <span style={{color:DT.accent,letterSpacing:"0.2em"}}>{"•".repeat(currentManagerPin.length)}</span> ({currentManagerPin.length} digits)</div>
-                  <div style={{display:"flex",gap:8,marginBottom:12}}>
-                    {!showChangePinForm&&(
-                      <button onClick={toggleManagerDisabled} style={{flex:1,padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>
-                        {managerDisabled?"ENABLE_MANAGERS →":"DISABLE_MANAGERS →"}
-                      </button>
-                    )}
-                  </div>
+                  <div style={{fontSize:12,color:DT.subText,marginBottom:12}}>Current PIN: <span style={{color:DT.accent,letterSpacing:"0.2em"}}>{"•".repeat(currentManagerPin.length)}</span> ({currentManagerPin.length} digits)</div>
+
                   {managerDisabled&&(
                     <div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>
                       // WARNING: Manager permissions currently DISABLED
                     </div>
                   )}
+
+                  {!showChangePinForm&&(
+                    <button onClick={toggleManagerDisabled} style={{width:"100%",marginBottom:10,padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",transition:"all 0.3s"}}>
+                      {managerDisabled?"✓ ENABLE_MANAGERS →":"⊘ DISABLE_MANAGERS →"}
+                    </button>
+                  )}
+
                   {!showChangePinForm?(
                     <button onClick={()=>setShowChangePinForm(true)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>
                       CHANGE_PIN →
@@ -957,7 +960,7 @@ export default function App() {
                         <div style={{fontSize:11,color:DT.green,marginBottom:8,letterSpacing:"0.05em"}}>// OK: PINs match — ready to save</div>
                       )}
                       <div style={{display:"flex",gap:8,marginTop:10}}>
-                        <button onClick={()=>{setShowChangePinForm(false);setChangePinForm({newPin:"",confirmPin:""}); }} style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>CANCEL</button>
+                        <button onClick={()=>{setShowChangePinForm(false);setChangePinForm({newPin:"",confirmPin:""});}} style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>CANCEL</button>
                         <button onClick={changeManagerPin} style={{flex:2,padding:"9px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>CONFIRM_CHANGE →</button>
                       </div>
                     </div>
