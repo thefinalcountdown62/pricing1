@@ -389,9 +389,15 @@ export default function App() {
 
     const itemChannel=supabase.channel("items-realtime")
       .on("postgres_changes",{event:"*",schema:"public",table:"items"},payload=>{
-        if(payload.eventType==="INSERT")setItems(prev=>[...prev,fromDB(payload.new)]);
-        else if(payload.eventType==="UPDATE")setItems(prev=>prev.map(i=>i.id===payload.new.id?fromDB(payload.new):i));
-        else if(payload.eventType==="DELETE")setItems(prev=>prev.filter(i=>i.id!==payload.old.id));
+        if(payload.eventType==="INSERT"){
+          setItems(prev=>[...prev,fromDB(payload.new)]);
+        } else if(payload.eventType==="UPDATE"){
+          // Re-fetch the full row to ensure all fields including location and out_of_stock are current
+          supabase.from("items").select("*").eq("id",payload.new.id).single()
+            .then(({data})=>{ if(data) setItems(prev=>prev.map(i=>i.id===data.id?fromDB(data):i)); });
+        } else if(payload.eventType==="DELETE"){
+          setItems(prev=>prev.filter(i=>i.id!==payload.old.id));
+        }
       }).subscribe();
 
     const settingsChannel=supabase.channel("settings-realtime")
@@ -479,11 +485,19 @@ export default function App() {
       wineType:form.wineType,outOfStock:form.outOfStock};
     setSyncing(true);
     if(view==="edit"){
-      const{error}=await supabase.from("items").update(toDB({...fields,id:editId})).eq("id",editId);
-      if(error)showToast("Save failed","error"); else showToast("Updated!");
+      const updated={...fields,id:editId};
+      const{error}=await supabase.from("items").update(toDB(updated)).eq("id",editId);
+      if(error){showToast("Save failed","error");}
+      else{
+        // Optimistically update local state immediately
+        setItems(prev=>prev.map(i=>i.id===editId?{...i,...updated}:i));
+        showToast("Updated!");
+      }
     } else {
-      const{error}=await supabase.from("items").insert(toDB({...fields,id:Date.now()}));
-      if(error)showToast("Save failed","error"); else showToast(`${isWine?"Wine":"Beer"} added!`);
+      const newId=Date.now();
+      const{error}=await supabase.from("items").insert(toDB({...fields,id:newId}));
+      if(error){showToast("Save failed","error");}
+      else{showToast(`${isWine?"Wine":"Beer"} added!`);}
     }
     setSyncing(false);setView("list");
   }
@@ -496,8 +510,15 @@ export default function App() {
   async function toggleOutOfStock(id){
     requireManager(async()=>{
       const item=items.find(i=>i.id===id);if(!item)return;
-      const{error}=await supabase.from("items").update(toDB({...item,outOfStock:!item.outOfStock})).eq("id",id);
-      if(error)showToast("Update failed","error");
+      const updated={...item,outOfStock:!item.outOfStock};
+      // Optimistically update local state immediately
+      setItems(prev=>prev.map(i=>i.id===id?updated:i));
+      const{error}=await supabase.from("items").update(toDB(updated)).eq("id",id);
+      if(error){
+        // Revert on failure
+        setItems(prev=>prev.map(i=>i.id===id?item:i));
+        showToast("Update failed","error");
+      }
     });
   }
 
