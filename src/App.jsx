@@ -44,6 +44,10 @@ const DT = {
   red:         "#ff4466",
 };
 
+const MANAGER_DISABLED_KEY = "beer-pricing-manager-disabled";
+function loadManagerDisabled() { try { return localStorage.getItem(MANAGER_DISABLED_KEY) === "true"; } catch { return false; } }
+function saveManagerDisabled(v) { try { localStorage.setItem(MANAGER_DISABLED_KEY, v ? "true" : "false"); } catch {} }
+
 function fromDB(row) {
   return {
     id:            row.id,
@@ -351,6 +355,7 @@ export default function App() {
   const [showChangePinForm,setShowChangePinForm] = useState(false);
   const [changePinForm,setChangePinForm]         = useState({newPin:"",confirmPin:""});
   const [currentManagerPin,setCurrentManagerPin] = useState(loadManagerPin);
+  const [managerDisabled,setManagerDisabled]     = useState(loadManagerDisabled);
   // ── import/export ──
   const [showExportMenu,setShowExportMenu]   = useState(false);
   const [importPreview,setImportPreview]     = useState(null);
@@ -404,6 +409,7 @@ export default function App() {
 
   // ── auth ──
   function requireManager(action){
+    if(managerDisabled&&!isDev){showToast("Manager permissions disabled","error");return;}
     if(isDev||isManager){action();return;}
     setPendingAction(()=>action);
     setShowPinModal("manager");
@@ -481,25 +487,25 @@ export default function App() {
   // ── bug actions ──
   async function submitBugReport(){
     if(!reportForm.title.trim()||!reportForm.description.trim()){showToast("Title and description required","error");return;}
-    const{error}=await supabase.from("bug_reports").insert({
+    const{data,error}=await supabase.from("bug_reports").insert({
       title:reportForm.title.trim(),description:reportForm.description.trim(),
       severity:reportForm.severity,status:"Open"
-    });
-    if(error){showToast("Failed to submit report","error");}
+    }).select();
+    if(error){console.error("Bug report error:",error);showToast(error.message||"Failed to submit report","error");}
     else{showToast("Bug report submitted!");setReportForm({title:"",description:"",severity:"Medium"});setShowReportForm(false);
-      const{data}=await supabase.from("bug_reports").select("*").order("created_at",{ascending:false});
-      if(data)setBugReports(data);}
+      const{data:fresh}=await supabase.from("bug_reports").select("*").order("created_at",{ascending:false});
+      if(fresh)setBugReports(fresh);}
   }
   async function addKnownBug(){
     if(!newBugForm.title.trim()||!newBugForm.description.trim()){showToast("Title and description required","error");return;}
-    const{error}=await supabase.from("known_bugs").insert({
+    const{data,error}=await supabase.from("known_bugs").insert({
       title:newBugForm.title.trim(),description:newBugForm.description.trim(),
       severity:newBugForm.severity,status:newBugForm.status
-    });
-    if(error){showToast("Failed to add bug","error");}
+    }).select();
+    if(error){console.error("Known bug error:",error);showToast(error.message||"Failed to add bug","error");}
     else{showToast("Known bug added!");setNewBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBugForm(false);
-      const{data}=await supabase.from("known_bugs").select("*").order("created_at",{ascending:false});
-      if(data)setKnownBugs(data);}
+      const{data:fresh}=await supabase.from("known_bugs").select("*").order("created_at",{ascending:false});
+      if(fresh)setKnownBugs(fresh);}
   }
   async function deleteKnownBug(id){
     const{error}=await supabase.from("known_bugs").delete().eq("id",id);
@@ -511,6 +517,13 @@ export default function App() {
   }
 
   // ── import/export ──
+  function toggleManagerDisabled(){
+    const next=!managerDisabled;
+    setManagerDisabled(next);
+    saveManagerDisabled(next);
+    showToast(next?"Manager permissions disabled":"Manager permissions restored");
+  }
+
   function changeManagerPin(){
     if(changePinForm.newPin.length<4){showToast("PIN must be 4 digits","error");return;}
     if(!/^\d{4}$/.test(changePinForm.newPin)){showToast("PIN must be 4 numbers","error");return;}
@@ -563,7 +576,13 @@ export default function App() {
         />
       )}
 
-      {/* ── TOAST ── */}
+      {/* ── MANAGER DISABLED BANNER ── */}
+      {managerDisabled&&!isDev&&(
+        <div style={{position:"sticky",top:0,zIndex:200,background:"#e67e22",padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
+          <span style={{fontSize:16}}>⚠️</span>
+          <span style={{fontSize:12,fontWeight:600,color:"#fff",lineHeight:1.4}}>Manager permissions temporarily disabled by developer. Please be patient while it is resolved.</span>
+        </div>
+      )}
       {toast&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",padding:"12px 24px",borderRadius:30,color:"#fff",fontWeight:600,fontSize:14,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.5)",fontFamily:"inherit",whiteSpace:"nowrap",background:toast.type==="error"?"#e74c3c":"#27ae60"}}>{toast.msg}</div>}
 
       {/* ══════════════════════════════════════════════
@@ -889,6 +908,18 @@ export default function App() {
                     <span style={{fontSize:10,padding:"3px 8px",background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`,borderRadius:4,letterSpacing:"0.06em"}}>ACTIVE</span>
                   </div>
                   <div style={{fontSize:12,color:DT.subText,marginBottom:14}}>Current PIN: <span style={{color:DT.accent,letterSpacing:"0.2em"}}>{"•".repeat(currentManagerPin.length)}</span> ({currentManagerPin.length} digits)</div>
+                  <div style={{display:"flex",gap:8,marginBottom:12}}>
+                    {!showChangePinForm&&(
+                      <button onClick={toggleManagerDisabled} style={{flex:1,padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>
+                        {managerDisabled?"ENABLE_MANAGERS →":"DISABLE_MANAGERS →"}
+                      </button>
+                    )}
+                  </div>
+                  {managerDisabled&&(
+                    <div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>
+                      // WARNING: Manager permissions currently DISABLED
+                    </div>
+                  )}
                   {!showChangePinForm?(
                     <button onClick={()=>setShowChangePinForm(true)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>
                       CHANGE_PIN →
