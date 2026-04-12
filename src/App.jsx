@@ -536,8 +536,16 @@ export default function App() {
   // ── import/export ──
   async function toggleManagerDisabled(){
     const next=!managerDisabled;
-    const{error}=await supabase.from("app_settings").update({value:next?"true":"false"}).eq("key","manager_disabled");
-    if(error){showToast("Failed to update setting","error");return;}
+    // Force local state immediately so UI responds
+    setManagerDisabled(next);
+    // Use upsert to guarantee the row exists and gets updated
+    const{error}=await supabase.from("app_settings").upsert({key:"manager_disabled",value:next?"true":"false"},{onConflict:"key"});
+    if(error){
+      // Revert on failure
+      setManagerDisabled(!next);
+      showToast(error.message||"Failed to update setting","error");
+      return;
+    }
     showToast(next?"Manager permissions disabled":"Manager permissions restored");
   }
 
