@@ -44,6 +44,7 @@ const DT = {
   red:         "#ff4466",
 };
 
+function fromDB(row) {
   return {
     id:            row.id,
     name:          row.name,
@@ -56,6 +57,7 @@ const DT = {
     location:      row.location       || "",
     outOfStock:    row.out_of_stock   || false,
   };
+}
 function toDB(item) {
   return {
     id:             item.id,
