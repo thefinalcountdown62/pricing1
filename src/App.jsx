@@ -355,7 +355,7 @@ export default function App() {
   const [showChangePinForm,setShowChangePinForm] = useState(false);
   const [changePinForm,setChangePinForm]         = useState({newPin:"",confirmPin:""});
   const [currentManagerPin,setCurrentManagerPin] = useState(loadManagerPin);
-  const [managerDisabled,setManagerDisabled]     = useState(loadManagerDisabled);
+  const [managerDisabled,setManagerDisabled]     = useState(false);
   // ── import/export ──
   const [showExportMenu,setShowExportMenu]   = useState(false);
   const [importPreview,setImportPreview]     = useState(null);
@@ -369,7 +369,7 @@ export default function App() {
   const isWine = activeCategory==="Wine";
   const isDark = themeMode==="dark";
 
-  // ── load items ──
+  // ── load items + app settings ──
   useEffect(()=>{
     async function fetchItems(){
       setLoading(true);
@@ -377,14 +377,31 @@ export default function App() {
       if(!error&&data)setItems(data.map(fromDB));
       setLoading(false);
     }
+    async function fetchSettings(){
+      const {data}=await supabase.from("app_settings").select("*");
+      if(data){
+        const disabled=data.find(r=>r.key==="manager_disabled");
+        if(disabled)setManagerDisabled(disabled.value==="true");
+      }
+    }
     fetchItems();
-    const channel=supabase.channel("items-realtime")
+    fetchSettings();
+
+    const itemChannel=supabase.channel("items-realtime")
       .on("postgres_changes",{event:"*",schema:"public",table:"items"},payload=>{
         if(payload.eventType==="INSERT")setItems(prev=>[...prev,fromDB(payload.new)]);
         else if(payload.eventType==="UPDATE")setItems(prev=>prev.map(i=>i.id===payload.new.id?fromDB(payload.new):i));
         else if(payload.eventType==="DELETE")setItems(prev=>prev.filter(i=>i.id!==payload.old.id));
       }).subscribe();
-    return()=>supabase.removeChannel(channel);
+
+    const settingsChannel=supabase.channel("settings-realtime")
+      .on("postgres_changes",{event:"*",schema:"public",table:"app_settings"},payload=>{
+        if(payload.new&&payload.new.key==="manager_disabled"){
+          setManagerDisabled(payload.new.value==="true");
+        }
+      }).subscribe();
+
+    return()=>{supabase.removeChannel(itemChannel);supabase.removeChannel(settingsChannel);};
   },[]);
 
   // ── load bugs when page changes ──
@@ -517,10 +534,10 @@ export default function App() {
   }
 
   // ── import/export ──
-  function toggleManagerDisabled(){
+  async function toggleManagerDisabled(){
     const next=!managerDisabled;
-    setManagerDisabled(next);
-    saveManagerDisabled(next);
+    const{error}=await supabase.from("app_settings").update({value:next?"true":"false"}).eq("key","manager_disabled");
+    if(error){showToast("Failed to update setting","error");return;}
     showToast(next?"Manager permissions disabled":"Manager permissions restored");
   }
 
