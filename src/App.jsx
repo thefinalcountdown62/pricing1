@@ -56,7 +56,6 @@ const DT = {
     location:      row.location       || "",
     outOfStock:    row.out_of_stock   || false,
   };
-}
 function toDB(item) {
   return {
     id:             item.id,
