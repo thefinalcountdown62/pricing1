@@ -483,7 +483,7 @@ export default function App() {
     if(!reportForm.title.trim()||!reportForm.description.trim()){showToast("Title and description required","error");return;}
     const{error}=await supabase.from("bug_reports").insert({
       title:reportForm.title.trim(),description:reportForm.description.trim(),
-      severity:reportForm.severity,status:"Open",created_at:new Date().toISOString()
+      severity:reportForm.severity,status:"Open"
     });
     if(error){showToast("Failed to submit report","error");}
     else{showToast("Bug report submitted!");setReportForm({title:"",description:"",severity:"Medium"});setShowReportForm(false);
@@ -494,7 +494,7 @@ export default function App() {
     if(!newBugForm.title.trim()||!newBugForm.description.trim()){showToast("Title and description required","error");return;}
     const{error}=await supabase.from("known_bugs").insert({
       title:newBugForm.title.trim(),description:newBugForm.description.trim(),
-      severity:newBugForm.severity,status:newBugForm.status,created_at:new Date().toISOString()
+      severity:newBugForm.severity,status:newBugForm.status
     });
     if(error){showToast("Failed to add bug","error");}
     else{showToast("Known bug added!");setNewBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBugForm(false);
