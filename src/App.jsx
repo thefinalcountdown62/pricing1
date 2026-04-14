@@ -442,6 +442,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
             {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
             {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>🍷 {item.wineType}</span>}
             {hasInventory&&<span style={{background:isLowStock?"#e67e2222":oos?"#e74c3c22":T.badge,border:`1px solid ${isLowStock?"#e67e2244":oos?"#e74c3c44":T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:isLowStock?"#e67e22":oos?"#e74c3c":T.badgeText}}>📦 {item.inventory} left</span>}
+            {item.gilliesRecommendation&&<span style={{background:"#f0c04022",border:"1px solid #f0c04055",borderRadius:6,padding:"2px 7px",fontSize:11,color:"#f0c040",fontWeight:600}}>⭐ Gillie's Pick</span>}
             {item.location&&<span style={{fontSize:11,color:T.sub,display:"flex",alignItems:"center",gap:3}}>📍 {item.location}</span>}
             {item.expiryDate&&(()=>{
               const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
@@ -764,6 +765,25 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
             </div>
           );
         })}
+        {/* Recommendations — double-wide */}
+        {(()=>{
+          const recCount=items.filter(i=>i.gilliesRecommendation).length;
+          return(
+            <div onClick={()=>onSelectCategory({key:"recommendations",name:"Gillie's Recommendations",icon:"⭐",theme:{bg:"#120e00",header:"linear-gradient(160deg,#1e1800,#120e00)",accent:"#f0c040",accentText:"#0f1117",card:"#1a1400",border:"#3a2e00",sub:"#806040",badge:"#1e1800",badgeBorder:"#3a2e00",badgeText:"#c0a040",oosOverlay:"rgba(18,14,0,0.6)"},subcategories:[]})}
+              className="cat-card"
+              style={{gridColumn:"1 / -1",background:"linear-gradient(135deg,#1a1400 0%,#120e00 100%)",border:"1px solid #3a2e00",borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${CATEGORIES.length*0.07}s both`}}>
+              <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"#f0c040",borderRadius:"16px 16px 0 0",opacity:0.9}}/>
+              <div style={{display:"flex",alignItems:"center",gap:14}}>
+                <div style={{fontSize:36}}>⭐</div>
+                <div>
+                  <div style={{fontSize:16,fontWeight:700,color:"#f0c040",marginBottom:2}}>Gillie's Recommendations</div>
+                  <div style={{fontSize:12,color:"#806040"}}>{recCount} item{recCount!==1?"s":""} personally recommended by the owner</div>
+                </div>
+              </div>
+              <div style={{position:"absolute",bottom:-20,right:-20,width:70,height:70,borderRadius:"50%",background:"#f0c040",opacity:0.06}}/>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Data modal */}
@@ -797,6 +817,49 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
 function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem}){
+  // Special recommendations view
+  if(category.key==="recommendations"){
+    const recItems=items.filter(i=>i.gilliesRecommendation&&!i.outOfStock);
+    const bg=isDark?"#120e00":"#fffff0";
+    const card=isDark?"#1a1400":"#fffef0";
+    const border=isDark?"#3a2e00":"#d0c080";
+    const text=isDark?"#f0f0f0":"#1a1a1a";
+    const sub=isDark?"#806040":"#907040";
+    const accent="#f0c040";
+    return(
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+        <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <div style={{background:isDark?"linear-gradient(160deg,#1e1800,#120e00)":"linear-gradient(160deg,#f8f0c0,#fffff0)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:0}}>
+            <button onClick={onBack} style={{background:isDark?"#1a1400":"#f0e8a0",border:`1px solid ${border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit",flexShrink:0}}>←</button>
+            <div>
+              <div style={{fontSize:18,fontWeight:700,color:accent}}>⭐ Gillie's Recommendations</div>
+              <div style={{fontSize:11,color:sub}}>{recItems.length} item{recItems.length!==1?"s":""} · personally selected by the owner</div>
+            </div>
+          </div>
+        </div>
+        <div style={{padding:"14px"}}>
+          {recItems.length===0&&(
+            <div style={{textAlign:"center",padding:"50px 20px",color:sub}}>
+              <div style={{fontSize:40,marginBottom:10}}>⭐</div>
+              <div style={{fontSize:16,fontWeight:600,color:text,marginBottom:6}}>No recommendations yet</div>
+              <div style={{fontSize:13}}>Toggle "Gillie's Recommendation" on any item to feature it here</div>
+            </div>
+          )}
+          {recItems.map((item,idx)=>{
+            const cat=CATEGORIES.find(c=>c.key===item.category);
+            const T2=buildThemeVariant(cat?.theme||category.theme,isDark?"dark":"light");
+            return(
+              <div key={item.id} style={{animation:`fadeUp 0.22s ease ${idx*0.05}s both`}}>
+                <ItemCard item={item} T={T2} onEdit={()=>{}} onDelete={()=>{}} onToggle={()=>{}}/>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
   const baseT=category.theme;
   const T=buildThemeVariant(baseT,isDark?"dark":"light");
   const isAlcohol=category.key==="beverages_alcoholic";
@@ -832,7 +895,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     return()=>clearTimeout(t);
   },[scrollToItem]);
 
-  const emptyForm={name:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",...emptyAlcoholForm(category.subcategories[0].key)};
+  const emptyForm={name:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",gilliesRecommendation:false,...emptyAlcoholForm(category.subcategories[0].key)};
   const [form,setForm]=useState(emptyForm);
 
   function setSubcategory(sub){setForm(f=>({...f,subcategory:sub,...emptyAlcoholForm(sub)}));}
@@ -866,7 +929,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       notes:item.notes||"",
       outOfStock:item.outOfStock||false,
       mapZone:item.mapZone||null,
-      expiryDate:item.expiryDate||""});
+      expiryDate:item.expiryDate||"",
+      gilliesRecommendation:item.gilliesRecommendation||false});
     setMapOpen(!!item.mapZone);
     setShowForm(true);
   }
@@ -889,6 +953,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       inventory:inventoryCount, outOfStock:autoOos,
       mapZone:form.mapZone||null,
       expiryDate:form.expiryDate||"",
+      gilliesRecommendation:form.gilliesRecommendation||false,
     };
     const extra=PACK_SUBS.includes(form.subcategory)
       ?{packSize:form.packSize,containerType:form.containerType,deposit:form.deposit?parseFloat(form.deposit):0}
@@ -899,6 +964,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       price:base.price, location:base.location, notes:base.notes,
       inventory:base.inventory, out_of_stock:base.outOfStock,
       map_zone:base.mapZone, expiry_date:base.expiryDate||null,
+      gillies_recommendation:base.gilliesRecommendation||false,
       pack_size:extra.packSize||null, container_type:extra.containerType||null,
       deposit:extra.deposit??null, wine_type:extra.wineType||null,
     };
@@ -920,6 +986,11 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       price:parseFloat(form.price),
       details:PACK_SUBS.includes(form.subcategory)?`${form.packSize} · ${form.containerType}`:WINE_SUBS.includes(form.subcategory)?form.wineType:"",
       timestamp:new Date(),
+      role:isDev?"Developer":"Manager",
+      // snapshot for undo: previous item state (for edits) or item id (for adds/deletes)
+      snapshot:action==="edited"?editItem:null,
+      itemId:action==="edited"?editItem?.id:null,
+      categoryKey:category.key,
     });
     setSyncing(false);setEditItem(null);setShowForm(false);setForm(emptyForm);
   }
@@ -1166,7 +1237,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             </div>
 
             {/* Out of stock toggle */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.outOfStock?"#e74c3c44":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.outOfStock?"#e74c3c44":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
               <div>
                 <div style={{fontSize:14,color:isDark?"#f0f0f0":"#1a1a1a"}}>Out of Stock</div>
                 {form.inventory!==""&&parseInt(form.inventory)===0&&<div style={{fontSize:11,color:"#e74c3c",marginTop:2}}>Auto-set because inventory is 0</div>}
@@ -1174,6 +1245,18 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               <button onClick={()=>setForm(f=>({...f,outOfStock:!f.outOfStock}))}
                 style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.outOfStock?"#e74c3c":T.badge,position:"relative",transition:"background 0.2s",flexShrink:0}}>
                 <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.outOfStock?25:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+              </button>
+            </div>
+
+            {/* Gillie's Recommendation toggle */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.gilliesRecommendation?"#f0c04044":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
+              <div>
+                <div style={{fontSize:14,color:isDark?"#f0f0f0":"#1a1a1a"}}>⭐ Gillie's Recommendation</div>
+                <div style={{fontSize:11,color:isDark?"#3a4a60":"#909080",marginTop:2}}>Highlighted in the recommendations section</div>
+              </div>
+              <button onClick={()=>setForm(f=>({...f,gilliesRecommendation:!f.gilliesRecommendation}))}
+                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.gilliesRecommendation?"#f0c040":T.badge,position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.gilliesRecommendation?25:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
               </button>
             </div>
 
@@ -1320,7 +1403,7 @@ function BugsPage({T,isManager,onRequireManager}){
 }
 
 // ── DevPage ───────────────────────────────────────────────────────────────────
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange}){
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange}){
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
   const [managerDisabled,setManagerDisabled]=useState(managerDisabledProp);
@@ -1408,6 +1491,25 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             </button>
           </div>
         </div>
+        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.storeHours</div>
+        <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+          <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// shown on the schedule page</div>
+          {storeHours.map((row,i)=>(
+            <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
+              <input value={row.days} onChange={e=>{const h=[...storeHours];h[i]={...h[i],days:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
+                style={{flex:"0 0 90px",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
+              <input value={row.hours} onChange={e=>{const h=[...storeHours];h[i]={...h[i],hours:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
+                style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
+              <button onClick={()=>{const h=storeHours.filter((_,j)=>j!==i);onStoreHoursChange&&onStoreHoursChange(h);}}
+                style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,width:28,height:28,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
+            </div>
+          ))}
+          <button onClick={()=>onStoreHoursChange&&onStoreHoursChange([...storeHours,{days:"",hours:""}])}
+            style={{width:"100%",padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em",marginTop:4}}>
+            + ADD_ROW →
+          </button>
+        </div>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.known [{knownBugs.length}]</div>
         <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em",marginBottom:12}}>{showAddBug?"✕ CANCEL":"+ ADD_KNOWN_BUG →"}</button>
         {showAddBug&&(
@@ -1434,26 +1536,40 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
 
         {/* Audit log */}
-        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// audit.log [last {auditLog.length}/5]</div>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// audit.log [last {auditLog.length}/10]</div>
         {auditLog.length===0?(
           <div style={{fontSize:12,color:DT.subText,padding:"8px 0",letterSpacing:"0.08em"}}>// array empty — no edits recorded this session</div>
         ):(
           auditLog.map((entry,i)=>{
-            const actionColor=entry.action==="added"?DT.green:"#f0c040";
-            const t=entry.timestamp;
+            const actionColor=entry.action==="added"?DT.green:entry.action==="deleted"?DT.red:"#f0c040";
+            const t=entry.timestamp instanceof Date?entry.timestamp:new Date(entry.timestamp);
             const timeStr=t?`${t.getHours().toString().padStart(2,"0")}:${t.getMinutes().toString().padStart(2,"0")}:${t.getSeconds().toString().padStart(2,"0")}`:"--:--:--";
+            const canUndo=entry.action==="edited"&&entry.snapshot;
             return(
               <div key={entry.id} style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${actionColor}`}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                  <span style={{fontSize:11,fontWeight:700,color:actionColor,letterSpacing:"0.08em",textTransform:"uppercase"}}>{entry.action==="added"?"+ ADDED":"~ EDITED"}</span>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}>
+                    <span style={{fontSize:11,fontWeight:700,color:actionColor,letterSpacing:"0.08em",textTransform:"uppercase"}}>{entry.action==="added"?"+ ADDED":entry.action==="deleted"?"✕ DELETED":"~ EDITED"}</span>
+                    {entry.role&&<span style={{fontSize:9,padding:"1px 6px",borderRadius:3,background:`${DT.accent}15`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.role}</span>}
+                  </div>
                   <span style={{fontSize:10,color:DT.subText,fontFamily:"'Courier New',monospace"}}>{timeStr}</span>
                 </div>
                 <div style={{fontSize:13,color:DT.text,fontWeight:600,marginBottom:3}}>{entry.itemName}</div>
-                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap",alignItems:"center"}}>
                   <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`}}>{entry.category}</span>
                   <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
                   {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
-                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price.toFixed(2)}</span>
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price?.toFixed(2)}</span>
+                  {canUndo&&(
+                    <button onClick={async()=>{
+                      const s=entry.snapshot;
+                      const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,gillies_recommendation:s.gilliesRecommendation||false};
+                      await sb.from("items").update(row).eq("id",s.id);
+                      alert(`↩ Reverted "${s.name}" to previous state`);
+                    }} style={{marginLeft:"auto",padding:"3px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"}}>
+                      ↩ UNDO
+                    </button>
+                  )}
                 </div>
               </div>
             );
@@ -1520,7 +1636,7 @@ function fmt12(t){
   return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
 }
 
-function SchedulePage({isManager,isDark,onUnlock}){
+function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
   const now=new Date();
   const currentYear=now.getFullYear();
   const saved=loadMonth();
@@ -1712,16 +1828,15 @@ function SchedulePage({isManager,isDark,onUnlock}){
 
         {/* Store hours */}
         <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-          {[
-            {days:"Sun",hours:"8 AM – 1 PM",  color:"#7c83fd"},
-            {days:"Mon – Thu",hours:"8 AM – 6:30 PM",color:isDark?"#4aaa4a":"#2a7a2a"},
-            {days:"Fri – Sat",hours:"8 AM – 7:30 PM",color:"#e67e22"},
-          ].map(({days,hours,color})=>(
-            <div key={days} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
-              <div style={{fontSize:9,fontWeight:700,color:color,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{days}</div>
-              <div style={{fontSize:11,fontWeight:600,color:text,whiteSpace:"nowrap"}}>{hours}</div>
-            </div>
-          ))}
+          {storeHours.map(({days,hours},i)=>{
+            const colors=["#7c83fd",isDark?"#4aaa4a":"#2a7a2a","#e67e22"];
+            return(
+              <div key={i} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
+                <div style={{fontSize:9,fontWeight:700,color:colors[i%3],textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{days}</div>
+                <div style={{fontSize:11,fontWeight:600,color:text,whiteSpace:"nowrap"}}>{hours}</div>
+              </div>
+            );
+          })}
         </div>
         <div style={{display:"flex",alignItems:"center",gap:8}}>
           <button onClick={()=>setMonth(m=>(m+11)%12)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:text,fontSize:16,fontFamily:"inherit",flexShrink:0}}>‹</button>
@@ -1762,29 +1877,77 @@ function SchedulePage({isManager,isDark,onUnlock}){
           })}
         </div>
 
-        {/* Monthly earnings summary */}
-        {Object.keys(earnings).length>0&&(
-          <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,animation:"fadeUp 0.3s ease"}}>
-            <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:700}}>{MONTH_NAMES[month]} Earnings — before tax</div>
-            {Object.entries(earnings).map(([name,hrs])=>(
-              <div key={name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
-                <div style={{width:28,height:28,borderRadius:"50%",background:nameColor(name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-                  <span style={{fontSize:11,fontWeight:700,color:nameColor(name,isDark?80:20)}}>{name[0]?.toUpperCase()}</span>
-                </div>
-                <div style={{flex:1}}>
-                  <div style={{fontSize:13,fontWeight:600,color:text}}>{name}</div>
-                  <div style={{fontSize:11,color:sub}}>{hrs.toFixed(1)} hrs</div>
-                </div>
-                <div style={{fontSize:15,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)}</div>
+        {/* Earnings summary — weekly + monthly */}
+        {Object.keys(earnings).length>0&&(()=>{
+          const SS_RATE=0.062, MED_RATE=0.0145;
+          // Weekly: hrs in the selected week (days in current month / 7 approx) — we show per-week avg
+          // Actually compute: weekly = monthly hrs / (daysInMonth/7)
+          const weeksInMonth=daysInMonth/7;
+          return(
+            <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,animation:"fadeUp 0.3s ease"}}>
+              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:12,fontWeight:700}}>{MONTH_NAMES[month]} Pay Summary</div>
+              {Object.entries(earnings).map(([name,monthHrs])=>{
+                const weekHrs=monthHrs/weeksInMonth;
+                const grossWeek=weekHrs*HOURLY_RATE;
+                const grossMonth=monthHrs*HOURLY_RATE;
+                const ssWeek=grossWeek*SS_RATE;
+                const medWeek=grossWeek*MED_RATE;
+                const netWeek=grossWeek-ssWeek-medWeek;
+                const ssMonth=grossMonth*SS_RATE;
+                const medMonth=grossMonth*MED_RATE;
+                const netMonth=grossMonth-ssMonth-medMonth;
+                return(
+                  <div key={name} style={{marginBottom:14,background:isDark?"#0a0f1e":"#f8f8f0",border:`1px solid ${border}`,borderRadius:12,padding:12}}>
+                    <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+                      <div style={{width:28,height:28,borderRadius:"50%",background:nameColor(name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                        <span style={{fontSize:11,fontWeight:700,color:nameColor(name,isDark?80:20)}}>{name[0]?.toUpperCase()}</span>
+                      </div>
+                      <div style={{fontSize:13,fontWeight:700,color:text}}>{name}</div>
+                      <div style={{marginLeft:"auto",fontSize:11,color:sub}}>{monthHrs.toFixed(1)} hrs/mo · {weekHrs.toFixed(1)} hrs/wk avg</div>
+                    </div>
+                    {/* Weekly */}
+                    <div style={{marginBottom:6}}>
+                      <div style={{fontSize:10,color:sub,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Weekly (avg)</div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
+                        <span style={{color:sub}}>Gross</span><span style={{color:text,fontWeight:600}}>${grossWeek.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                        <span style={{color:sub}}>SS (6.2%)</span><span style={{color:"#e07070"}}>−${ssWeek.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+                        <span style={{color:sub}}>Medicare (1.45%)</span><span style={{color:"#e07070"}}>−${medWeek.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,paddingTop:4,borderTop:`1px solid ${border}`}}>
+                        <span style={{color:sub}}>Take-home</span><span style={{color:isDark?"#4aaa4a":"#2a7a2a"}}>${netWeek.toFixed(2)}</span>
+                      </div>
+                    </div>
+                    {/* Monthly */}
+                    <div style={{marginTop:8,paddingTop:8,borderTop:`1px solid ${border}`}}>
+                      <div style={{fontSize:10,color:sub,textTransform:"uppercase",letterSpacing:"0.07em",marginBottom:4}}>Monthly</div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:12,marginBottom:2}}>
+                        <span style={{color:sub}}>Gross</span><span style={{color:text,fontWeight:600}}>${grossMonth.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:2}}>
+                        <span style={{color:sub}}>SS (6.2%)</span><span style={{color:"#e07070"}}>−${ssMonth.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:11,marginBottom:4}}>
+                        <span style={{color:sub}}>Medicare (1.45%)</span><span style={{color:"#e07070"}}>−${medMonth.toFixed(2)}</span>
+                      </div>
+                      <div style={{display:"flex",justifyContent:"space-between",fontSize:13,fontWeight:700,paddingTop:4,borderTop:`1px solid ${border}`}}>
+                        <span style={{color:sub}}>Take-home</span><span style={{color:isDark?"#4aaa4a":"#2a7a2a"}}>${netMonth.toFixed(2)}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div style={{height:1,background:border,margin:"4px 0 10px"}}/>
+              <div style={{display:"flex",justifyContent:"space-between"}}>
+                <span style={{fontSize:12,color:sub}}>Total gross payroll</span>
+                <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(Object.values(earnings).reduce((a,h)=>a+h,0)*HOURLY_RATE).toFixed(2)}</span>
               </div>
-            ))}
-            <div style={{height:1,background:border,margin:"10px 0"}}/>
-            <div style={{display:"flex",justifyContent:"space-between"}}>
-              <span style={{fontSize:12,color:sub}}>Total payroll</span>
-              <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(Object.values(earnings).reduce((a,h)=>a+h,0)*HOURLY_RATE).toFixed(2)}</span>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </div>
     </div>
   );
@@ -1797,6 +1960,19 @@ async function fetchTaxRate(){
 }
 async function saveTaxRate(r){
   await sb.from("app_settings").upsert({key:"tax_rate",value:String(r)},{onConflict:"key"});
+}
+
+const DEFAULT_HOURS=[
+  {days:"Sun",hours:"8 AM – 1 PM"},
+  {days:"Mon – Thu",hours:"8 AM – 6:30 PM"},
+  {days:"Fri – Sat",hours:"8 AM – 7:30 PM"},
+];
+async function fetchStoreHours(){
+  const {data}=await sb.from("app_settings").select("value").eq("key","store_hours").single();
+  return data?JSON.parse(data.value):DEFAULT_HOURS;
+}
+async function saveStoreHours(h){
+  await sb.from("app_settings").upsert({key:"store_hours",value:JSON.stringify(h)},{onConflict:"key"});
 }
 const DENOMINATIONS=[
   {label:"Pennies",     value:0.01},
@@ -1940,10 +2116,9 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
               <div style={{fontSize:11,color:sub,marginTop:2}}>Current sales tax rate</div>
             </div>
             <div style={{display:"flex",gap:8,marginBottom:14}}>
-              {[{id:"add",label:"Add Tax"},{id:"remove",label:"Remove Tax"}].map(m=>(
+              {[{id:"add",label:"+ Add Tax to Price"},{id:"remove",label:"− Remove Tax from Total"}].map(m=>(
                 <button key={m.id} onClick={()=>setTaxMode(m.id)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${taxMode===m.id?accent:border}`,background:taxMode===m.id?`${accent}22`:"transparent",color:taxMode===m.id?accent:sub,fontSize:12,fontWeight:taxMode===m.id?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
-                  {taxMode===m.id&&m.id==="add"?"+ Add Tax to Price":"- Remove Tax from Total"}
-                  {taxMode!==m.id&&m.label}
+                  {m.label}
                 </button>
               ))}
             </div>
@@ -2101,10 +2276,170 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
   );
 }
 
+// ── ChecklistsPage ────────────────────────────────────────────────────────────
+function loadChecklists(){try{const s=localStorage.getItem("checklists");return s?JSON.parse(s):[];}catch{return[];}}
+function saveChecklists(cl){try{localStorage.setItem("checklists",JSON.stringify(cl));}catch{}}
+
+function ChecklistsPage({isDev,isDark,onUnlock}){
+  const [lists,setLists]=useState(loadChecklists);
+  const [focusList,setFocusList]=useState(null); // index
+  const [showNewForm,setShowNewForm]=useState(false);
+  const [newTitle,setNewTitle]=useState("");
+  const [newItem,setNewItem]=useState("");
+
+  const bg=isDark?"#080b12":"#f0f0e8";
+  const card=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const accent="#7c83fd";
+
+  function persist(updated){setLists(updated);saveChecklists(updated);}
+
+  function createList(){
+    if(!newTitle.trim())return;
+    persist([...lists,{id:Date.now(),title:newTitle.trim(),items:[]}]);
+    setNewTitle("");setShowNewForm(false);
+  }
+
+  function deleteList(idx){persist(lists.filter((_,i)=>i!==idx));}
+
+  function addItem(listIdx){
+    if(!newItem.trim())return;
+    const updated=lists.map((l,i)=>i===listIdx?{...l,items:[...l.items,{id:Date.now(),text:newItem.trim(),done:false}]}:l);
+    persist(updated);setNewItem("");
+  }
+
+  function toggleItem(listIdx,itemId){
+    const updated=lists.map((l,i)=>i===listIdx?{...l,items:l.items.map(it=>it.id===itemId?{...it,done:!it.done}:it)}:l);
+    persist(updated);
+  }
+
+  function deleteItem(listIdx,itemId){
+    const updated=lists.map((l,i)=>i===listIdx?{...l,items:l.items.filter(it=>it.id!==itemId)}:l);
+    persist(updated);
+  }
+
+  function resetChecks(listIdx){
+    const updated=lists.map((l,i)=>i===listIdx?{...l,items:l.items.map(it=>({...it,done:false}))}:l);
+    persist(updated);
+  }
+
+  // ── Detail view ──────────────────────────────────────────────────────────────
+  if(focusList!==null){
+    const list=lists[focusList];
+    if(!list){setFocusList(null);return null;}
+    const done=list.items.filter(i=>i.done).length;
+    const pct=list.items.length?Math.round(done/list.items.length*100):0;
+    return(
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+        <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>setFocusList(null)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit",flexShrink:0}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:18,fontWeight:700,color:accent}}>{list.title}</div>
+              <div style={{fontSize:11,color:sub}}>{done}/{list.items.length} complete</div>
+            </div>
+            {isDev&&<button onClick={()=>resetChecks(focusList)} style={{fontSize:11,padding:"5px 10px",background:"transparent",border:`1px solid ${border}`,borderRadius:8,color:sub,cursor:"pointer",fontFamily:"inherit"}}>Reset</button>}
+          </div>
+          {list.items.length>0&&(
+            <div style={{marginTop:10}}>
+              <div style={{height:4,background:isDark?"#1e2a40":"#d0d0c0",borderRadius:4,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${pct}%`,background:pct===100?"#27ae60":accent,borderRadius:4,transition:"width 0.3s ease"}}/>
+              </div>
+            </div>
+          )}
+        </div>
+        <div style={{padding:"14px"}}>
+          {list.items.length===0&&(
+            <div style={{textAlign:"center",color:sub,padding:"40px 20px"}}>
+              <div style={{fontSize:32,marginBottom:8}}>📋</div>
+              <div style={{fontSize:14}}>{isDev?"Add items below to build this checklist.":"No items yet."}</div>
+            </div>
+          )}
+          {list.items.map((item,i)=>(
+            <div key={item.id} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:card,border:`1px solid ${item.done?accent+"33":border}`,borderRadius:12,marginBottom:8,animation:`fadeUp 0.2s ease ${i*0.04}s both`,transition:"border-color 0.2s"}}>
+              <button onClick={()=>toggleItem(focusList,item.id)} style={{width:24,height:24,borderRadius:6,border:`2px solid ${item.done?accent:sub}`,background:item.done?accent:"transparent",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"all 0.15s"}}>
+                {item.done&&<span style={{color:"#0f1117",fontSize:14,fontWeight:900}}>✓</span>}
+              </button>
+              <span style={{flex:1,fontSize:14,color:item.done?sub:text,textDecoration:item.done?"line-through":"none",transition:"all 0.2s"}}>{item.text}</span>
+              {isDev&&<button onClick={()=>deleteItem(focusList,item.id)} style={{background:"none",border:"none",color:"#e07070",fontSize:14,cursor:"pointer",padding:2,flexShrink:0}}>🗑️</button>}
+            </div>
+          ))}
+          {isDev&&(
+            <div style={{display:"flex",gap:8,marginTop:8}}>
+              <input value={newItem} onChange={e=>setNewItem(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addItem(focusList)}
+                placeholder="Add item…"
+                style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"10px 14px",color:text,fontSize:14,fontFamily:"inherit"}}/>
+              <button onClick={()=>addItem(focusList)} style={{padding:"10px 16px",background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+</button>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── List view ──────────────────────────────────────────────────────────────
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
+        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>{"Gil's Grocery"}</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:20,fontWeight:700,color:accent}}>Checklists</div>
+          {isDev&&<button onClick={()=>setShowNewForm(v=>!v)} style={{padding:"7px 14px",background:showNewForm?"transparent":accent,border:`1px solid ${showNewForm?border:accent}`,borderRadius:20,color:showNewForm?sub:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.2s"}}>{showNewForm?"✕ Cancel":"+ New List"}</button>}
+        </div>
+      </div>
+      <div style={{padding:"14px"}}>
+        {showNewForm&&(
+          <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
+            <div style={{fontSize:11,color:sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>List Title</div>
+            <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createList()}
+              placeholder="e.g. Closing Checklist"
+              style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"10px 14px",color:text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:10}}/>
+            <button onClick={createList} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Create Checklist</button>
+          </div>
+        )}
+        {lists.length===0&&!showNewForm&&(
+          <div style={{textAlign:"center",color:sub,padding:"60px 20px"}}>
+            <div style={{fontSize:40,marginBottom:10}}>📋</div>
+            <div style={{fontSize:16,fontWeight:600,color:text,marginBottom:6}}>No checklists yet</div>
+            <div style={{fontSize:13}}>{isDev?"Tap + New List to create one":"No checklists have been created yet"}</div>
+          </div>
+        )}
+        {lists.map((list,idx)=>{
+          const done=list.items.filter(i=>i.done).length;
+          const pct=list.items.length?Math.round(done/list.items.length*100):0;
+          return(
+            <div key={list.id} onClick={()=>setFocusList(idx)}
+              style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer",animation:`fadeUp 0.22s ease ${idx*0.06}s both`,position:"relative"}}>
+              <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:list.items.length?8:0}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:15,fontWeight:700,color:text}}>{list.title}</div>
+                  <div style={{fontSize:11,color:sub,marginTop:1}}>{list.items.length} item{list.items.length!==1?"s":""}{list.items.length>0&&` · ${done} done`}</div>
+                </div>
+                {isDev&&<button onClick={e=>{e.stopPropagation();deleteList(idx);}} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:4}}>🗑️</button>}
+                <span style={{color:sub,fontSize:16}}>›</span>
+              </div>
+              {list.items.length>0&&(
+                <div style={{height:3,background:isDark?"#1e2a40":"#d0d0c0",borderRadius:3,overflow:"hidden"}}>
+                  <div style={{height:"100%",width:`${pct}%`,background:pct===100?"#27ae60":accent,borderRadius:3,transition:"width 0.3s"}}/>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+
 function BottomNav({page,setPage,activeCategoryTheme,isDark}){
   const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
   const borderColor=page==="dev"?DT.cardBorder:isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
-  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
+  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
   return(
     <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,display:"flex",zIndex:150,transition:"background 0.3s"}}>
       {tabs.map(tab=>{
@@ -2139,6 +2474,7 @@ export default function App(){
   const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
   const [loading,setLoading]=useState(true);
   const [managerDisabled,setManagerDisabled]=useState(false);
+  const [storeHours,setStoreHours]=useState(DEFAULT_HOURS);
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
@@ -2155,6 +2491,7 @@ export default function App(){
             packSize:row.pack_size||null, containerType:row.container_type||null,
             deposit:row.deposit!=null?parseFloat(row.deposit):null,
             wineType:row.wine_type||null,
+            gilliesRecommendation:row.gillies_recommendation||false,
           })));
         }
         const rate=await fetchTaxRate();
@@ -2162,6 +2499,9 @@ export default function App(){
         // Load managerDisabled
         const {data:md}=await sb.from("app_settings").select("value").eq("key","manager_disabled").single();
         if(md)setManagerDisabled(md.value==="true");
+        // Load store hours
+        const hours=await fetchStoreHours();
+        setStoreHours(hours);
       }catch(e){console.error("Init error:",e);}
       finally{setLoading(false);}
     }
@@ -2173,7 +2513,7 @@ export default function App(){
   const MANAGER_PIN="3018",DEV_PIN="130654";
 
   function addAuditEntry(entry){
-    setAuditLog(prev=>[entry,...prev].slice(0,5));
+    setAuditLog(prev=>[entry,...prev].slice(0,10));
   }
 
   function submitPin(){
@@ -2184,8 +2524,7 @@ export default function App(){
       try{sessionStorage.setItem("isManager","true");if(pinInput===DEV_PIN)sessionStorage.setItem("isDev","true");}catch{}
       setShowPinModal(false);setPinInput("");setPinError(false);
     } else {setPinError(true);setPinInput("");}
-  }
-  function logout(){
+  }  function logout(){
     setIsManager(false);setIsDev(false);
     try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}
     hasShownWelcomeRef.current={dev:false,manager:false};
@@ -2234,10 +2573,11 @@ export default function App(){
           ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} onRequireManager={()=>setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem}/>
           :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef}/>
       )}
-      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)}/>}
+      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
+      {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} onRequireManager={()=>setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v){setIsManager(false);setIsDev(false);try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}}}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
     </div>
   );
 }
