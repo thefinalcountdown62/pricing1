@@ -657,6 +657,9 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        @keyframes bannerSlide{from{opacity:0;transform:translateX(-50%) translateY(-100%)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+        @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+        @keyframes popIn{0%{opacity:0;transform:scale(0.85)}70%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
         .cat-card{transition:transform 0.18s ease,box-shadow 0.18s ease;}
         .cat-card:active{transform:scale(0.96)!important;}
         .cat-card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.35);}
@@ -667,6 +670,9 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
         .icon-btn:active{transform:scale(0.94);}
         .export-item{transition:background 0.12s ease;}
         .export-item:hover{background:rgba(255,255,255,0.07)!important;}
+        .tap-btn{transition:transform 0.1s ease,opacity 0.1s ease;}
+        .tap-btn:active{transform:scale(0.94);opacity:0.8;}
+        .slide-toggle{transition:background 0.22s ease;}
         @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
         @keyframes devWelcome{
           0%  {transform:translateX(120%);opacity:0;}
@@ -735,7 +741,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
             {searchResults.map((item,idx)=>{
               const cat=CATEGORIES.find(c=>c.key===item.category);
               return(
-                <div key={item.id} className="search-result-row" onClick={()=>{onSelectCategory(cat, item.id);setSearch("");setSearchResults([]);}}
+                <div key={item.id} className="search-result-row tap-btn" onClick={()=>{onSelectCategory(cat, item.id);setSearch("");setSearchResults([]);}}
                   style={{padding:"10px 14px",borderBottom:isDark?"1px solid #141c2c":"1px solid #e8e8d8",display:"flex",justifyContent:"space-between",alignItems:"center",animation:`fadeIn 0.15s ease ${idx*0.04}s both`,cursor:"pointer"}}>
                   <div>
                     <div style={{fontSize:13,fontWeight:600,color:isDark?"#f0f0f0":"#1a1a1a"}}>{item.name}</div>
@@ -816,7 +822,12 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 }
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
-function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem}){
+function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false}){
+  function requireManager(){
+    if(!isManager){onRequireManager();return false;}
+    if(managerDisabled&&!isDev){onRequireManager();return false;}
+    return true;
+  }
   // Special recommendations view
   if(category.key==="recommendations"){
     const recItems=items.filter(i=>i.gilliesRecommendation&&!i.outOfStock);
@@ -850,7 +861,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             const cat=CATEGORIES.find(c=>c.key===item.category);
             const T2=buildThemeVariant(cat?.theme||category.theme,isDark?"dark":"light");
             return(
-              <div key={item.id} style={{animation:`fadeUp 0.22s ease ${idx*0.05}s both`}}>
+              <div key={item.id} style={{animation:`fadeUp 0.22s ease ${idx*0.05}s both`,transition:"box-shadow 0.15s ease",cursor:"default"}}>
                 <ItemCard item={item} T={T2} onEdit={()=>{}} onDelete={()=>{}} onToggle={()=>{}}/>
               </div>
             );
@@ -920,7 +931,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
   function resetFilters(){setSearch("");setFilterPack("All");setFilterContainer("All");setSortBy("name");}
 
   function openEdit(item){
-    if(!isManager){onRequireManager();return;}
+    if(!requireManager())return;
     setEditItem(item);
     setForm({name:item.name,subcategory:item.subcategory,price:String(item.price),location:item.location||"",
       packSize:item.packSize||"6 Pack",containerType:item.containerType||"Can",
@@ -937,7 +948,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
 
   function handleAddClick(action){
     if(action==="cancel"){setShowForm(false);setEditItem(null);setForm(emptyForm);setMapOpen(false);return;}
-    if(!isManager){onRequireManager();return;}
+    if(!requireManager())return;
     setEditItem(null);setForm(emptyForm);setMapOpen(false);setShowForm(true);
   }
 
@@ -1015,16 +1026,21 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        @keyframes popIn{0%{opacity:0;transform:scale(0.87)}70%{transform:scale(1.03)}100%{opacity:1;transform:scale(1)}}
         .icon-btn{transition:transform 0.15s ease,opacity 0.15s ease;}
         .icon-btn:hover{transform:scale(1.08);}
         .icon-btn:active{transform:scale(0.94);}
+        .tap-btn{transition:transform 0.1s ease,opacity 0.12s ease;}
+        .tap-btn:active{transform:scale(0.95);opacity:0.8;}
+        .item-row{transition:box-shadow 0.15s ease;}
+        .item-row:hover{box-shadow:0 4px 18px rgba(0,0,0,0.22);}
         @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
       `}</style>
 
       {/* Confirm delete modal */}
       {confirmDelete&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:320,animation:"modalIn 0.25s ease"}}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:320,animation:"popIn 0.25s cubic-bezier(0.34,1.1,0.64,1)"}}>
             <div style={{fontSize:28,textAlign:"center",marginBottom:10}}>🗑️</div>
             <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:8,textAlign:"center"}}>
               {confirmDelete.ids?"Delete Items?":"Delete Item?"}
@@ -1068,6 +1084,13 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       )}
       {/* Header */}
       <div style={{background:baseT.header,borderBottom:`1px solid ${baseT.border}`,padding:"14px 14px 0",position:"sticky",top:0,zIndex:100}}>
+        {/* Manager disabled banner */}
+        {managerDisabled&&!isDev&&(
+          <div style={{background:"#e74c3c",borderRadius:8,padding:"7px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8,animation:"slideDown 0.25s ease"}}>
+            <span style={{fontSize:13}}>🔒</span>
+            <span style={{fontSize:12,fontWeight:600,color:"#fff"}}>Manager permissions are temporarily disabled</span>
+          </div>
+        )}
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
           <button onClick={onBack} className="icon-btn" style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:T.badgeText,fontSize:16,flexShrink:0,fontFamily:"inherit"}}>←</button>
           <span style={{fontSize:20}}>{category.icon}</span>
@@ -1237,7 +1260,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             </div>
 
             {/* Out of stock toggle */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.outOfStock?"#e74c3c44":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.outOfStock?"#e74c3c44":T.border}`,borderRadius:10,transition:"border-color 0.25s ease"}}>
               <div>
                 <div style={{fontSize:14,color:isDark?"#f0f0f0":"#1a1a1a"}}>Out of Stock</div>
                 {form.inventory!==""&&parseInt(form.inventory)===0&&<div style={{fontSize:11,color:"#e74c3c",marginTop:2}}>Auto-set because inventory is 0</div>}
@@ -1249,7 +1272,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             </div>
 
             {/* Gillie's Recommendation toggle */}
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.gilliesRecommendation?"#f0c04044":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.gilliesRecommendation?"#f0c04044":T.border}`,borderRadius:10,transition:"border-color 0.25s ease"}}>
               <div>
                 <div style={{fontSize:14,color:isDark?"#f0f0f0":"#1a1a1a"}}>⭐ Gillie's Recommendation</div>
                 <div style={{fontSize:11,color:isDark?"#3a4a60":"#909080",marginTop:2}}>Highlighted in the recommendations section</div>
@@ -1281,7 +1304,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               </div>
             )}
 
-            <button onClick={handleSave} disabled={syncing} style={{width:"100%",padding:"12px",background:accentColor,border:"none",borderRadius:10,color:baseT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:syncing?0.7:1}}>
+            <button onClick={handleSave} disabled={syncing} className="tap-btn" style={{width:"100%",padding:"12px",background:accentColor,border:"none",borderRadius:10,color:baseT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:syncing?0.7:1}}>
               {syncing?"Saving…":editItem?"Save Changes":"Add Item"}
             </button>
           </div>
@@ -1320,7 +1343,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
             }
             return(
               <div key={item.id} ref={el=>itemRefs.current[item.id]=el}
-                style={{
+                className="item-row"
+                style={{borderRadius:14,
                   animation:`fadeUp 0.22s ease ${idx*0.05}s both`,
                   borderRadius:14,
                   boxShadow:isHighlighted?`0 0 0 2px ${accentColor}, 0 0 20px ${accentColor}55`:"none",
@@ -1329,8 +1353,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 <SwipeRow onSwipeLeft={()=>openEdit(item)} accentColor={accentColor}>
                   <ItemCard item={item} T={T} onEdit={()=>openEdit(item)}
                     forceExpand={isHighlighted}
-                    onDelete={()=>{if(!isManager){onRequireManager();return;}setConfirmDelete({id:item.id,name:item.name});}}
-                    onToggle={()=>{if(!isManager){onRequireManager();return;}const newOos=!item.outOfStock;sb.from('items').update({out_of_stock:newOos}).eq('id',item.id);setItems(prev=>prev.map(i=>i.id===item.id?{...i,outOfStock:newOos}:i));}}/>
+                    onDelete={()=>{if(!requireManager())return;setConfirmDelete({id:item.id,name:item.name});}}
+                    onToggle={()=>{if(!requireManager())return;const newOos=!item.outOfStock;sb.from('items').update({out_of_stock:newOos}).eq('id',item.id);setItems(prev=>prev.map(i=>i.id===item.id?{...i,outOfStock:newOos}:i));}}/>
                 </SwipeRow>
               </div>
             );
@@ -1362,7 +1386,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
 }
 
 // ── BugsPage ──────────────────────────────────────────────────────────────────
-function BugsPage({T,isManager,onRequireManager}){
+function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
   const [showForm,setShowForm]=useState(false);
@@ -1381,7 +1405,7 @@ function BugsPage({T,isManager,onRequireManager}){
       <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>📝 Report a Bug</div>
       <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Requires manager PIN</div>
       {!showForm?(
-        <button onClick={()=>{if(!isManager){onRequireManager();return;}setShowForm(true);}} style={{width:"100%",padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Submit Bug Report</button>
+        <button onClick={()=>{if(!isManager||managerDisabled){onRequireManager();return;}setShowForm(true);}} style={{width:"100%",padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Submit Bug Report</button>
       ):(
         <div style={{background:T.card||T.cardBg,border:`1px solid ${T.border||T.cardBorder}`,borderRadius:14,padding:18}}>
           <div style={{marginBottom:10}}><div style={{fontSize:11,color:T.sub||T.subText,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Title</div><input style={inp} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Short description"/></div>
@@ -1403,7 +1427,7 @@ function BugsPage({T,isManager,onRequireManager}){
 }
 
 // ── DevPage ───────────────────────────────────────────────────────────────────
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange}){
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,setItems,activeNotif,onNotifChange}){
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
   const [managerDisabled,setManagerDisabled]=useState(managerDisabledProp);
@@ -1427,6 +1451,10 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
   const [bugForm,setBugForm]=useState({title:"",description:"",severity:"Medium",status:"Open"});
   const [taxRateInput,setTaxRateInput]=useState(String((taxRate*100).toFixed(2)));
   const [taxRateSaved,setTaxRateSaved]=useState(false);
+  const [showNotifForm,setShowNotifForm]=useState(false);
+  const [notifMsg,setNotifMsg]=useState("");
+  const [notifColor,setNotifColor]=useState("blue");
+  const [notifDuration,setNotifDuration]=useState("60"); // minutes, "" = permanent
   function handleTaxSave(){
     const val=parseFloat(taxRateInput);
     if(isNaN(val)||val<0||val>100)return;
@@ -1536,6 +1564,95 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
         <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
 
         {/* Audit log */}
+        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+
+        {/* ── Notifications ── */}
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// system.notification</div>
+
+        {/* Active notification */}
+        {activeNotif?(
+          <div style={{background:DT.cardBg,border:`2px solid ${NOTIF_COLORS[activeNotif.color]?.border||DT.cardBorder}`,borderRadius:10,padding:14,marginBottom:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:NOTIF_COLORS[activeNotif.color]?.dot||DT.accent,boxShadow:`0 0 6px ${NOTIF_COLORS[activeNotif.color]?.dot||DT.accent}`}}/>
+              <span style={{fontSize:12,fontWeight:600,color:NOTIF_COLORS[activeNotif.color]?.text||DT.text,flex:1}}>{activeNotif.message}</span>
+            </div>
+            <div style={{fontSize:10,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>
+              {activeNotif.expiresAt?`// expires: ${new Date(activeNotif.expiresAt).toLocaleTimeString()}`:"// permanent — no expiry set"}
+            </div>
+            <button onClick={()=>{onNotifChange&&onNotifChange(null);saveActiveNotif(null);}}
+              style={{width:"100%",padding:"8px",background:"#ff446615",border:"1px solid #ff446644",borderRadius:6,color:DT.red,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"}}>
+              ⊘ DISMISS_NOTIFICATION →
+            </button>
+          </div>
+        ):(
+          <div style={{fontSize:12,color:DT.subText,padding:"6px 0 10px",letterSpacing:"0.06em"}}>// no active notification</div>
+        )}
+
+        {/* New notification form */}
+        <button onClick={()=>setShowNotifForm(v=>!v)}
+          style={{width:"100%",padding:"9px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.08em",marginBottom:showNotifForm?10:20}}>
+          {showNotifForm?"✕ CANCEL":"+ NEW_NOTIFICATION →"}
+        </button>
+
+        {showNotifForm&&(
+          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:20,animation:"slideDown 0.2s ease"}}>
+            {/* Message */}
+            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:5}}>// message</div>
+            <input value={notifMsg} onChange={e=>setNotifMsg(e.target.value)}
+              placeholder="e.g. Inventory check in progress..."
+              style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"'Courier New',monospace",boxSizing:"border-box",marginBottom:12}}/>
+
+            {/* Color picker */}
+            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:8}}>// color</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap",marginBottom:12}}>
+              {Object.entries(NOTIF_COLORS).map(([key,col])=>(
+                <button key={key} onClick={()=>setNotifColor(key)}
+                  title={col.label}
+                  style={{width:26,height:26,borderRadius:"50%",background:col.bubble,border:`2px solid ${notifColor===key?"#fff":"transparent"}`,cursor:"pointer",boxShadow:notifColor===key?`0 0 8px ${col.bubble}88`:"none",transition:"all 0.15s",transform:notifColor===key?"scale(1.2)":"scale(1)"}}/>
+              ))}
+            </div>
+
+            {/* Duration */}
+            <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",marginBottom:5}}>// duration (minutes — leave blank for permanent)</div>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:8}}>
+              {[{label:"15m",val:"15"},{label:"30m",val:"30"},{label:"1h",val:"60"},{label:"2h",val:"120"},{label:"4h",val:"240"},{label:"∞",val:""}].map(opt=>(
+                <button key={opt.val} onClick={()=>setNotifDuration(opt.val)}
+                  style={{padding:"5px 10px",borderRadius:6,border:`1px solid ${notifDuration===opt.val?DT.accent:DT.cardBorder}`,background:notifDuration===opt.val?`${DT.accent}20`:"transparent",color:notifDuration===opt.val?DT.accent:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",transition:"all 0.15s"}}>
+                  {opt.label}
+                </button>
+              ))}
+              <input value={notifDuration} onChange={e=>setNotifDuration(e.target.value)}
+                placeholder="custom"
+                style={{width:60,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"5px 8px",color:DT.text,fontSize:11,fontFamily:"'Courier New',monospace",textAlign:"center"}}/>
+              <span style={{display:"flex",alignItems:"center",fontSize:11,color:DT.subText}}>min</span>
+            </div>
+
+            {/* Preview */}
+            {notifMsg.trim()&&(
+              <div style={{background:NOTIF_COLORS[notifColor]?.bg||"#0d2540",border:`1px solid ${NOTIF_COLORS[notifColor]?.border||DT.cardBorder}`,borderRadius:8,padding:"8px 12px",marginBottom:12,display:"flex",alignItems:"center",gap:8}}>
+                <div style={{width:7,height:7,borderRadius:"50%",background:NOTIF_COLORS[notifColor]?.dot||DT.accent,flexShrink:0}}/>
+                <span style={{fontSize:12,color:NOTIF_COLORS[notifColor]?.text||DT.text,flex:1}}>{notifMsg}</span>
+                {notifDuration&&<span style={{fontSize:10,color:NOTIF_COLORS[notifColor]?.text||DT.text,opacity:0.6,fontFamily:"'Courier New',monospace"}}>{notifDuration}m</span>}
+              </div>
+            )}
+
+            <button onClick={()=>{
+              if(!notifMsg.trim())return;
+              const mins=notifDuration?parseInt(notifDuration):null;
+              const expiresAt=mins?new Date(Date.now()+mins*60*1000).toISOString():null;
+              const n={message:notifMsg.trim(),color:notifColor,expiresAt};
+              onNotifChange&&onNotifChange(n);
+              saveActiveNotif(n);
+              setNotifMsg("");setShowNotifForm(false);
+            }} style={{width:"100%",padding:"9px",background:`${DT.accent}20`,border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.08em"}}>
+              BROADCAST_NOTIFICATION →
+            </button>
+          </div>
+        )}
+
+        <div style={{height:1,background:DT.cardBorder,margin:"0 0 20px"}}/>
+
+        {/* Audit log */}
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// audit.log [last {auditLog.length}/10]</div>
         {auditLog.length===0?(
           <div style={{fontSize:12,color:DT.subText,padding:"8px 0",letterSpacing:"0.08em"}}>// array empty — no edits recorded this session</div>
@@ -1564,8 +1681,11 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
                     <button onClick={async()=>{
                       const s=entry.snapshot;
                       const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,gillies_recommendation:s.gilliesRecommendation||false};
-                      await sb.from("items").update(row).eq("id",s.id);
-                      alert(`↩ Reverted "${s.name}" to previous state`);
+                      const {error}=await sb.from("items").update(row).eq("id",s.id);
+                      if(!error){
+                        // Also update local state so UI reflects the revert immediately
+                        setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));
+                      }
                     }} style={{marginLeft:"auto",padding:"3px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"}}>
                       ↩ UNDO
                     </button>
@@ -1722,7 +1842,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
       <div style={{fontSize:40,marginBottom:12}}>📅</div>
       <div style={{fontSize:18,fontWeight:700,color:text,marginBottom:8}}>Manager Access Required</div>
       <div style={{fontSize:13,color:sub,marginBottom:28,textAlign:"center"}}>Sign in to view the work schedule.</div>
-      <button onClick={onUnlock} style={{padding:"12px 28px",background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sign In</button>
+      <button onClick={onUnlock} className="tap-btn" style={{padding:"12px 28px",background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sign In</button>
     </div>
   );
 
@@ -1739,7 +1859,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
               <div style={{fontSize:18,fontWeight:700,color:accent}}>{MONTH_NAMES[month]} {focusDay}</div>
               <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{daySh.length} shift{daySh.length!==1?"s":""}</div>
             </div>
-            <button onClick={()=>{setEditShift(null);setShiftForm({name:"",startTime:"09:00",endTime:"17:00",notes:""});setShowShiftForm(v=>!v);}}
+            <button onClick={()=>{setEditShift(null);setShiftForm({name:"",startTime:"09:00",endTime:"17:00",notes:""});setShowShiftForm(v=>!v);}} className="tap-btn"
               style={{padding:"8px 14px",background:showShiftForm?"transparent":accent,border:`1px solid ${showShiftForm?border:accent}`,borderRadius:20,cursor:"pointer",fontFamily:"inherit",color:showShiftForm?sub:"#fff",fontSize:12,fontWeight:700,transition:"all 0.2s"}}>
               {showShiftForm?"✕ Cancel":"+ Add Shift"}
             </button>
@@ -1785,7 +1905,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
           {daySh.map((s,idx)=>{
             const hrs=parseHours(s.startTime,s.endTime);
             return(
-              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`fadeUp 0.22s ease ${idx*0.05}s both`}}>
+              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`fadeUp 0.22s ease ${idx*0.05}s both`,transition:"box-shadow 0.15s ease",cursor:"default"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:s.notes?6:0}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:nameColor(s.name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <span style={{fontSize:13,fontWeight:700,color:nameColor(s.name,isDark?80:20)}}>{s.name.trim()[0]?.toUpperCase()||"?"}</span>
@@ -1863,7 +1983,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
             const names=[...new Set(sh.map(s=>s.name.trim()).filter(Boolean))];
             const isToday=now.getFullYear()===currentYear&&month===now.getMonth()&&day===now.getDate();
             return(
-              <div key={day} className="cal-day" onClick={()=>setFocusDay(day)}
+              <div key={day} className="cal-day tap-btn" onClick={()=>setFocusDay(day)}
                 style={{background:card,border:`1px solid ${isToday?accent:border}`,borderRadius:10,padding:"5px 3px",minHeight:62,cursor:"pointer",position:"relative",boxShadow:isToday?`0 0 0 1.5px ${accent}44`:"none"}}>
                 <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?accent:text,marginBottom:3,textAlign:"center",lineHeight:1}}>{day}</div>
                 <div style={{display:"flex",flexDirection:"column",gap:2}}>
@@ -1974,6 +2094,15 @@ async function fetchStoreHours(){
 async function saveStoreHours(h){
   await sb.from("app_settings").upsert({key:"store_hours",value:JSON.stringify(h)},{onConflict:"key"});
 }
+
+async function fetchActiveNotif(){
+  const {data}=await sb.from("app_settings").select("value").eq("key","active_notif").single();
+  if(!data||!data.value||data.value==="null")return null;
+  try{return JSON.parse(data.value);}catch{return null;}
+}
+async function saveActiveNotif(n){
+  await sb.from("app_settings").upsert({key:"active_notif",value:JSON.stringify(n)},{onConflict:"key"});
+}
 const DENOMINATIONS=[
   {label:"Pennies",     value:0.01},
   {label:"Nickels",     value:0.05},
@@ -2069,7 +2198,7 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
                 const isEq=btn==="=";
                 const isFn=["C","±","%","⌫"].includes(btn);
                 return(
-                  <button key={btn} className="calc-btn" onClick={()=>calcPress(btn)} style={{
+                  <button key={btn} className="calc-btn tap-btn" onClick={()=>calcPress(btn)} style={{
                     padding:"18px 0",borderRadius:14,border:"none",cursor:"pointer",
                     fontSize:isOp||isEq?22:18,fontWeight:isOp||isEq?700:400,fontFamily:"inherit",
                     background:isEq?accent:isOp?`${accent}22`:isFn?isDark?"#1e2a3a":"#e8e0d0":card,
@@ -2398,7 +2527,7 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
             <input value={newTitle} onChange={e=>setNewTitle(e.target.value)} onKeyDown={e=>e.key==="Enter"&&createList()}
               placeholder="e.g. Closing Checklist"
               style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"10px 14px",color:text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:10}}/>
-            <button onClick={createList} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Create Checklist</button>
+            <button onClick={createList} className="tap-btn" style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Create Checklist</button>
           </div>
         )}
         {lists.length===0&&!showNewForm&&(
@@ -2435,6 +2564,54 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
   );
 }
 
+
+// ── Notification Banner ───────────────────────────────────────────────────────
+const NOTIF_COLORS={
+  blue:  {label:"Blue",   bg:"#0d2540",border:"#2a6aaa",text:"#7ab8f5",dot:"#4a9af0",   bubble:"#4a9af0"},
+  green: {label:"Green",  bg:"#0a2a0a",border:"#1a6a1a",text:"#4aaa4a",dot:"#27ae60",   bubble:"#27ae60"},
+  yellow:{label:"Yellow", bg:"#2a2200",border:"#6a5500",text:"#f0c040",dot:"#f0c040",   bubble:"#f0c040"},
+  red:   {label:"Red",    bg:"#2a0a0a",border:"#6a1a1a",text:"#e07070",dot:"#e74c3c",   bubble:"#e74c3c"},
+  purple:{label:"Purple", bg:"#1a0a2a",border:"#4a1a6a",text:"#b070f0",dot:"#9b59b6",   bubble:"#9b59b6"},
+  orange:{label:"Orange", bg:"#2a1400",border:"#6a3000",text:"#e09040",dot:"#e67e22",   bubble:"#e67e22"},
+  teal:  {label:"Teal",   bg:"#0a2424",border:"#1a6060",text:"#40c0c0",dot:"#00b4d8",   bubble:"#00b4d8"},
+  pink:  {label:"Pink",   bg:"#2a0a1a",border:"#6a1a4a",text:"#f070b0",dot:"#e84393",   bubble:"#e84393"},
+};
+
+function NotifBanner({notif,onExpire}){
+  const col=NOTIF_COLORS[notif.color]||NOTIF_COLORS.blue;
+  const expiresAt=notif.expiresAt?new Date(notif.expiresAt):null;
+  const calcLeft=()=>expiresAt?Math.max(0,Math.floor((expiresAt-new Date())/1000)):null;
+  const [timeLeft,setTimeLeft]=useState(calcLeft);
+
+  useEffect(()=>{
+    if(!expiresAt)return;
+    const iv=setInterval(()=>{
+      const s=calcLeft();
+      setTimeLeft(s);
+      if(s<=0){onExpire&&onExpire();clearInterval(iv);}
+    },1000);
+    return()=>clearInterval(iv);
+  },[]);
+
+  function fmtTime(s){
+    if(s===null||s===undefined)return"";
+    if(s<=0)return"Expired";
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    if(h>0)return`${h}h ${m}m remaining`;
+    if(m>0)return`${m}m ${sec}s remaining`;
+    return`${sec}s remaining`;
+  }
+
+  return(
+    <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:col.bg,borderBottom:`2px solid ${col.border}`,zIndex:199,padding:"9px 16px",animation:"bannerSlide 0.35s cubic-bezier(0.34,1.1,0.64,1)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
+        <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
+        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"'Courier New',monospace"}}>{fmtTime(timeLeft)}</span>}
+      </div>
+    </div>
+  );
+}
 
 function BottomNav({page,setPage,activeCategoryTheme,isDark}){
   const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
@@ -2474,7 +2651,9 @@ export default function App(){
   const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
   const [loading,setLoading]=useState(true);
   const [managerDisabled,setManagerDisabled]=useState(false);
+  const [showMgrDisabledModal,setShowMgrDisabledModal]=useState(false);
   const [storeHours,setStoreHours]=useState(DEFAULT_HOURS);
+  const [activeNotif,setActiveNotif]=useState(null); // {message, color, expiresAt} or null
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
@@ -2502,6 +2681,13 @@ export default function App(){
         // Load store hours
         const hours=await fetchStoreHours();
         setStoreHours(hours);
+        // Load active notification
+        const notif=await fetchActiveNotif();
+        if(notif&&notif.expiresAt&&new Date(notif.expiresAt)>new Date()){
+          setActiveNotif(notif);
+        } else if(notif&&!notif.expiresAt){
+          setActiveNotif(notif); // permanent until deleted
+        }
       }catch(e){console.error("Init error:",e);}
       finally{setLoading(false);}
     }
@@ -2538,31 +2724,65 @@ export default function App(){
 
   return(
     <div style={{maxWidth:480,margin:"0 auto",position:"relative"}}>
+      <style>{`
+        @keyframes popIn{0%{opacity:0;transform:scale(0.85)}70%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+        @keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        .tap-btn{transition:transform 0.1s ease,opacity 0.12s;}
+        .tap-btn:active{transform:scale(0.95);opacity:0.8;}
+      `}</style>
       {/* Loading screen */}
       {loading&&(
         <div style={{position:"fixed",inset:0,background:"#080b12",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
-          <div style={{fontSize:32}}>🏪</div>
+          <div style={{fontSize:40,animation:"popIn 0.5s cubic-bezier(0.34,1.3,0.64,1)"}}>🏪</div>
           <div style={{fontSize:16,fontWeight:700,color:"#f0c040",fontFamily:"'Georgia',serif"}}>Gil's Grocery</div>
           <div style={{fontSize:12,color:"#3a4a60",letterSpacing:"0.1em",textTransform:"uppercase"}}>Loading…</div>
         </div>
       )}
+      {/* Manager Disabled Modal */}
+      {showMgrDisabledModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}} onClick={()=>setShowMgrDisabledModal(false)}>
+          <div style={{background:"#1a0f0f",border:"1px solid #e74c3c44",borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"popIn 0.3s cubic-bezier(0.34,1.1,0.64,1)"}} onClick={e=>e.stopPropagation()}>
+            <div style={{fontSize:36,marginBottom:10}}>🔒</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#e74c3c",marginBottom:8}}>Manager Access Disabled</div>
+            <div style={{fontSize:13,color:"#c07070",marginBottom:20,lineHeight:1.5}}>Manager permissions have been temporarily disabled by the developer. Please check back later.</div>
+            <button onClick={()=>setShowMgrDisabledModal(false)} style={{width:"100%",padding:12,background:"#e74c3c22",border:"1px solid #e74c3c44",borderRadius:10,color:"#e74c3c",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Dismiss</button>
+          </div>
+        </div>
+      )}
+
+      {/* Manager disabled banner */}
+      {managerDisabled&&!isDev&&(
+        <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:"#e74c3c",zIndex:200,padding:"8px 16px",display:"flex",alignItems:"center",gap:8,animation:"bannerSlide 0.3s cubic-bezier(0.34,1.1,0.64,1)"}}>
+          <span style={{fontSize:14}}>🔒</span>
+          <span style={{fontSize:12,fontWeight:600,color:"#fff",flex:1}}>Manager permissions are temporarily disabled</span>
+        </div>
+      )}
+
+      {/* Active dev notification banner */}
+      {activeNotif&&!managerDisabled&&<NotifBanner notif={activeNotif} managerDisabled={managerDisabled} isDev={isDev} onExpire={()=>{setActiveNotif(null);saveActiveNotif(null);}}/>}
+
       {/* PIN Modal */}
       {showPinModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:"#1a1f2e",border:"1px solid #2a3050",borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"modalIn 0.25s ease"}}>
-            <div style={{fontSize:32,marginBottom:8}}>🔒</div>
-            <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginBottom:6}}>Manager Sign In</div>
-            <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>Enter your PIN to unlock editing</div>
-            <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
-              onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
-              onKeyDown={e=>e.key==="Enter"&&submitPin()}
-              placeholder="••••"
-              style={{width:"100%",background:"#0f1117",border:`2px solid ${pinError?"#e74c3c":"#2e3450"}`,borderRadius:10,padding:"14px",color:"#f0f0f0",fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}/>
-            {pinError&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
-            {!pinError&&<div style={{height:20,marginBottom:12}}/>}
+          <div style={{background:"#1a1f2e",border:`1px solid ${managerDisabled&&!isDev?"#e74c3c44":"#2a3050"}`,borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:32,marginBottom:8}}>{managerDisabled&&!isDev?"🚫":"🔒"}</div>
+            <div style={{fontSize:18,fontWeight:700,color:managerDisabled&&!isDev?"#e74c3c":"#f0f0f0",marginBottom:6}}>{managerDisabled&&!isDev?"Access Disabled":"Manager Sign In"}</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>{managerDisabled&&!isDev?"Manager permissions are temporarily disabled by the developer.":"Enter your PIN to unlock editing"}</div>
+            {!(managerDisabled&&!isDev)&&<>
+              <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
+                onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
+                onKeyDown={e=>e.key==="Enter"&&submitPin()}
+                placeholder="••••"
+                style={{width:"100%",background:"#0f1117",border:`2px solid ${pinError?"#e74c3c":"#2e3450"}`,borderRadius:10,padding:"14px",color:"#f0f0f0",fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}/>
+              {pinError&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
+              {!pinError&&<div style={{height:20,marginBottom:12}}/>}
+            </>}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{setShowPinModal(false);setPinInput("");setPinError(false);}} style={{flex:1,padding:12,background:"transparent",border:"1px solid #2e3450",borderRadius:10,color:"#6b7280",fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-              <button onClick={submitPin} style={{flex:2,padding:12,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>
+              {!(managerDisabled&&!isDev)&&<button onClick={submitPin} style={{flex:2,padding:12,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>}
             </div>
           </div>
         </div>
@@ -2570,14 +2790,14 @@ export default function App(){
 
       {page==="pricing"&&(
         selectedCategory
-          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} onRequireManager={()=>setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem}/>
+          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem}/>
           :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef}/>
       )}
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
       {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark}/>}
-      {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} onRequireManager={()=>setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
+      {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
     </div>
   );
 }
