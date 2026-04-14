@@ -54,7 +54,7 @@ const SEVERITY_LEVELS = ["Low","Medium","High","Critical"];
 const PACK_SIZES      = ["Single","4 Pack","6 Pack","12 Pack","15 Pack","18 Pack","30 Pack"];
 const CONTAINER_TYPES = ["Can","Bottle"];
 const WINE_TYPES      = ["Red","White","Rosé","Sparkling","Other"];
-const PACK_SUBS       = ["beer","hard_seltzer"];
+const PACK_SUBS       = ["beer","hard_seltzer","soda"];
 const WINE_SUBS       = ["wine"];
 const AUTO_DEPOSIT    = {"Single":0,"4 Pack":0.20,"6 Pack":0.30,"12 Pack":0.60,"15 Pack":0.75,"18 Pack":0.90,"30 Pack":1.50};
 const THEME_KEY       = "proto-theme";
@@ -604,7 +604,7 @@ function ManagerButton({isManager,isDev,isDark,onSignIn,onSignOut}){
 }
 
 // ── HomeGrid ──────────────────────────────────────────────────────────────────
-function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef}){
+function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef,bannerOffset=0}){
   const [search,setSearch]=useState("");
   const [searchResults,setSearchResults]=useState([]);
   const [showExport,setShowExport]=useState(false);
@@ -656,7 +656,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
   }
 
   return(
-    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease"}}>
+    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease",paddingTop:bannerOffset}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -827,7 +827,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 }
 
 // ── CategoryPage ──────────────────────────────────────────────────────────────
-function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false}){
+function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem,managerDisabled=false,bannerOffset=0}){
   function requireManager(){
     if(!isManager){onRequireManager();return false;}
     if(managerDisabled&&!isDev){onRequireManager();return false;}
@@ -1088,7 +1088,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
         </div>
       )}
       {/* Header */}
-      <div style={{background:baseT.header,borderBottom:`1px solid ${baseT.border}`,padding:"14px 14px 0",position:"sticky",top:0,zIndex:100}}>
+      <div style={{background:baseT.header,borderBottom:`1px solid ${baseT.border}`,padding:"14px 14px 0",position:"sticky",top:bannerOffset,zIndex:100}}>
         {/* Manager disabled banner */}
         {managerDisabled&&!isDev&&(
           <div style={{background:"#e74c3c",borderRadius:8,padding:"7px 12px",marginBottom:10,display:"flex",alignItems:"center",gap:8,animation:"slideDown 0.25s ease"}}>
@@ -1748,20 +1748,17 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
                   <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
                   {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
                   <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price?.toFixed(2)}</span>
-                  {canUndo&&(
-                    <button onClick={async()=>{
-                      const s=entry.snapshot;
-                      const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,gillies_recommendation:s.gilliesRecommendation||false};
-                      const {error}=await sb.from("items").update(row).eq("id",s.id);
-                      if(!error){
-                        // Also update local state so UI reflects the revert immediately
-                        setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));
-                      }
-                    }} style={{marginLeft:"auto",padding:"3px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"}}>
-                      ↩ UNDO
-                    </button>
-                  )}
                 </div>
+                {canUndo&&(
+                  <button onClick={async()=>{
+                    const s=entry.snapshot;
+                    const row={name:s.name,category:s.category,subcategory:s.subcategory,price:s.price,location:s.location||"",notes:s.notes||"",inventory:s.inventory??null,out_of_stock:s.outOfStock||false,map_zone:s.mapZone||null,expiry_date:s.expiryDate||null,pack_size:s.packSize||null,container_type:s.containerType||null,deposit:s.deposit??null,wine_type:s.wineType||null,gillies_recommendation:s.gilliesRecommendation||false};
+                    const {error}=await sb.from("items").update(row).eq("id",s.id);
+                    if(!error){setItems&&setItems(prev=>prev.map(i=>i.id===s.id?{...i,...s}:i));}
+                  }} style={{marginTop:6,width:"100%",padding:"5px 10px",background:"#f0c04015",border:"1px solid #f0c04040",borderRadius:5,color:"#f0c040",fontSize:10,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em",textAlign:"center"}}>
+                    ↩ UNDO EDIT
+                  </button>
+                )}
               </div>
             );
           })
@@ -2635,12 +2632,228 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
 }
 
 
+// ── CustomerCounter ───────────────────────────────────────────────────────────
+function CustomerCounter(){
+  const [count,setCount]=useState(0);
+  const [visible,setVisible]=useState(false);
+  const [pulse,setPulse]=useState(false);
+  function tap(){
+    setCount(n=>n+1);
+    setPulse(true);
+    setTimeout(()=>setPulse(false),200);
+  }
+  return(
+    <div style={{position:"fixed",bottom:90,right:12,zIndex:190,display:"flex",flexDirection:"column",alignItems:"flex-end",gap:6}}>
+      {visible&&(
+        <div style={{background:"#0f1525",border:"1px solid #1e2a40",borderRadius:14,padding:"10px 14px",display:"flex",alignItems:"center",gap:12,animation:"popIn 0.2s ease",boxShadow:"0 4px 20px rgba(0,0,0,0.5)"}}>
+          <button onClick={()=>setCount(n=>Math.max(0,n-1))} style={{width:30,height:30,borderRadius:8,border:"1px solid #1e2a40",background:"transparent",color:"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>−</button>
+          <div style={{textAlign:"center",minWidth:40}}>
+            <div style={{fontSize:26,fontWeight:700,color:"#f0f0f0",lineHeight:1,transform:pulse?"scale(1.2)":"scale(1)",transition:"transform 0.15s ease"}}>{count}</div>
+            <div style={{fontSize:9,color:"#3a4a60",letterSpacing:"0.08em",textTransform:"uppercase"}}>customers</div>
+          </div>
+          <button onClick={tap} style={{width:30,height:30,borderRadius:8,border:"1px solid #7c83fd44",background:"#7c83fd18",color:"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"inherit",lineHeight:1}}>+</button>
+          <button onClick={()=>setCount(0)} style={{fontSize:10,color:"#3a4a60",background:"none",border:"none",cursor:"pointer",fontFamily:"inherit",padding:"0 0 0 4px"}}>reset</button>
+        </div>
+      )}
+      <button onClick={()=>setVisible(v=>!v)} style={{width:44,height:44,borderRadius:"50%",background:visible?"#7c83fd":"#0f1525",border:"1px solid #7c83fd44",color:visible?"#fff":"#7c83fd",fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",boxShadow:"0 2px 12px rgba(0,0,0,0.4)",transition:"all 0.2s ease"}}>
+        👤
+      </button>
+    </div>
+  );
+}
+
+// ── SuggestionsPage ───────────────────────────────────────────────────────────
+function SuggestionsPage({isDark,isManager}){
+  const [suggestions,setSuggestions]=useState([]);
+  const [form,setForm]=useState({title:"",description:"",category:"Feature"});
+  const [showForm,setShowForm]=useState(false);
+  const [loading,setLoading]=useState(true);
+
+  const bg=isDark?"#080b12":"#f0f0e8";
+  const card=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const accent="#7c83fd";
+
+  useEffect(()=>{
+    sb.from("suggestions").select("*").order("created_at",{ascending:false})
+      .then(({data})=>{if(data)setSuggestions(data);setLoading(false);})
+      .catch(()=>setLoading(false));
+  },[]);
+
+  async function submit(){
+    if(!form.title.trim())return;
+    const row={title:form.title.trim(),description:form.description.trim(),category:form.category,created_at:new Date().toLocaleDateString(),votes:0};
+    const {data}=await sb.from("suggestions").insert(row).select().single();
+    if(data){setSuggestions(prev=>[data,...prev]);}
+    setForm({title:"",description:"",category:"Feature"});setShowForm(false);
+  }
+
+  async function vote(id){
+    const s=suggestions.find(s=>s.id===id);
+    if(!s)return;
+    await sb.from("suggestions").update({votes:(s.votes||0)+1}).eq("id",id);
+    setSuggestions(prev=>prev.map(s=>s.id===id?{...s,votes:(s.votes||0)+1}:s));
+  }
+
+  const cats=["Feature","Improvement","Bug","Other"];
+
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
+        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:20,fontWeight:700,color:accent}}>💡 Suggestions</div>
+          <button onClick={()=>setShowForm(v=>!v)} style={{padding:"7px 14px",background:showForm?"transparent":accent,border:`1px solid ${showForm?border:accent}`,borderRadius:20,color:showForm?sub:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{showForm?"✕ Cancel":"+ Suggest"}</button>
+        </div>
+      </div>
+      <div style={{padding:"14px"}}>
+        {showForm&&(
+          <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
+            <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Title</div>
+            <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="What would you like to see?" style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"9px 12px",color:text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box",marginBottom:10}}/>
+            <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Details <span style={{opacity:0.5,fontWeight:400,textTransform:"none"}}>— optional</span></div>
+            <textarea value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the idea..." style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"9px 12px",color:text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box",minHeight:60,resize:"none",lineHeight:1.4,marginBottom:10}}/>
+            <div style={{display:"flex",gap:6,marginBottom:12,flexWrap:"wrap"}}>
+              {cats.map(cat=>(
+                <button key={cat} onClick={()=>setForm(f=>({...f,category:cat}))} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${form.category===cat?accent:border}`,background:form.category===cat?`${accent}22`:"transparent",color:form.category===cat?accent:sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>{cat}</button>
+              ))}
+            </div>
+            <button onClick={submit} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit Suggestion</button>
+          </div>
+        )}
+        {loading&&<div style={{textAlign:"center",color:sub,padding:40}}>Loading…</div>}
+        {!loading&&suggestions.length===0&&!showForm&&(
+          <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
+            <div style={{fontSize:36,marginBottom:8}}>💡</div>
+            <div style={{fontSize:15,fontWeight:600,color:text,marginBottom:4}}>No suggestions yet</div>
+            <div style={{fontSize:13}}>Be the first to suggest a feature!</div>
+          </div>
+        )}
+        {suggestions.map((s,i)=>{
+          const catColor={Feature:accent,Improvement:"#27ae60",Bug:"#e74c3c",Other:"#f0c040"}[s.category]||sub;
+          return(
+            <div key={s.id} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:"12px 14px",marginBottom:10,animation:`fadeUp 0.2s ease ${i*0.04}s both`}}>
+              <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                <button onClick={()=>vote(s.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"6px 8px",cursor:"pointer",minWidth:36,flexShrink:0}}>
+                  <span style={{fontSize:12}}>▲</span>
+                  <span style={{fontSize:12,fontWeight:700,color:text}}>{s.votes||0}</span>
+                </button>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
+                    <span style={{fontSize:13,fontWeight:700,color:text}}>{s.title}</span>
+                    <span style={{fontSize:10,padding:"1px 7px",borderRadius:10,background:`${catColor}22`,color:catColor,border:`1px solid ${catColor}44`}}>{s.category}</span>
+                  </div>
+                  {s.description&&<div style={{fontSize:12,color:sub,lineHeight:1.4,marginBottom:3}}>{s.description}</div>}
+                  <div style={{fontSize:10,color:sub}}>{s.created_at}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ── UpdateLogPage ─────────────────────────────────────────────────────────────
+function UpdateLogPage({isDark,isDev}){
+  const [logs,setLogs]=useState([]);
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState({version:"",title:"",notes:""});
+  const [loading,setLoading]=useState(true);
+
+  const bg=isDark?"#080b12":"#f0f0e8";
+  const card=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const accent="#f0c040";
+
+  useEffect(()=>{
+    sb.from("update_logs").select("*").order("created_at",{ascending:false})
+      .then(({data})=>{if(data)setLogs(data);setLoading(false);})
+      .catch(()=>setLoading(false));
+  },[]);
+
+  async function addLog(){
+    if(!form.title.trim())return;
+    const row={version:form.version.trim()||null,title:form.title.trim(),notes:form.notes.trim(),created_at:new Date().toLocaleDateString()};
+    const {data}=await sb.from("update_logs").insert(row).select().single();
+    if(data)setLogs(prev=>[data,...prev]);
+    setForm({version:"",title:"",notes:""});setShowForm(false);
+  }
+
+  async function deleteLog(id){
+    await sb.from("update_logs").delete().eq("id",id);
+    setLogs(prev=>prev.filter(l=>l.id!==id));
+  }
+
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+      <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
+        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+          <div style={{fontSize:20,fontWeight:700,color:accent}}>📋 Update Log</div>
+          {isDev&&<button onClick={()=>setShowForm(v=>!v)} style={{padding:"7px 14px",background:showForm?"transparent":accent,border:`1px solid ${showForm?border:accent}`,borderRadius:20,color:showForm?sub:"#0f1117",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>{showForm?"✕ Cancel":"+ Add Update"}</button>}
+        </div>
+      </div>
+      <div style={{padding:"14px"}}>
+        {isDev&&showForm&&(
+          <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.2s ease"}}>
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              <div style={{flex:"0 0 90px"}}>
+                <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Version</div>
+                <input value={form.version} onChange={e=>setForm(f=>({...f,version:e.target.value}))} placeholder="v1.2" style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"8px 10px",color:text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Title</div>
+                <input value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="What changed?" style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"8px 10px",color:text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              </div>
+            </div>
+            <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes <span style={{opacity:0.5,fontWeight:400,textTransform:"none"}}>— optional</span></div>
+            <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="Details of what was added, fixed, or changed..." style={{width:"100%",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"9px 12px",color:text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:80,resize:"none",lineHeight:1.5,marginBottom:10}}/>
+            <button onClick={addLog} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Post Update</button>
+          </div>
+        )}
+        {loading&&<div style={{textAlign:"center",color:sub,padding:40}}>Loading…</div>}
+        {!loading&&logs.length===0&&!showForm&&(
+          <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
+            <div style={{fontSize:36,marginBottom:8}}>📋</div>
+            <div style={{fontSize:15,fontWeight:600,color:text,marginBottom:4}}>No updates posted yet</div>
+            {isDev&&<div style={{fontSize:13}}>Tap + Add Update to post the first one</div>}
+          </div>
+        )}
+        {logs.map((log,i)=>(
+          <div key={log.id} style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:"14px 16px",marginBottom:12,animation:`fadeUp 0.2s ease ${i*0.05}s both`}}>
+            <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+              <div style={{flex:1}}>
+                <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
+                  {log.version&&<span style={{fontSize:11,padding:"2px 8px",borderRadius:6,background:`${accent}22`,color:accent,border:`1px solid ${accent}44`,fontWeight:700}}>{log.version}</span>}
+                  <span style={{fontSize:14,fontWeight:700,color:text}}>{log.title}</span>
+                </div>
+                {log.notes&&<div style={{fontSize:13,color:sub,lineHeight:1.6,whiteSpace:"pre-line"}}>{log.notes}</div>}
+                <div style={{fontSize:10,color:sub,marginTop:6}}>{log.created_at}</div>
+              </div>
+              {isDev&&<button onClick={()=>deleteLog(log.id)} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:4,flexShrink:0}}>🗑️</button>}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
 function BottomNav({page,setPage,activeCategoryTheme,isDark}){
   const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
   const borderColor=page==="dev"?DT.cardBorder:isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
-  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
+  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"},{id:"suggestions",label:"Ideas",icon:"💡"},{id:"updates",label:"Updates",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
   return(
-    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,display:"flex",zIndex:150,transition:"background 0.3s"}}>
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,display:"flex",zIndex:150,transition:"background 0.3s",overflowX:"auto",scrollbarWidth:"none"}}>
       {tabs.map(tab=>{
         const isActive=page===tab.id;
         const accentColor=tab.id==="dev"?DT.accent:activeCategoryTheme?.accent||"#f0c040";
@@ -2703,6 +2916,15 @@ export default function App(){
         // Load store hours
         const hours=await fetchStoreHours();
         setStoreHours(hours);
+        // New year check — delete all shifts from previous years
+        const storedYear=parseInt(localStorage.getItem("shifts_year")||"0");
+        const thisYear=new Date().getFullYear();
+        if(storedYear!==0&&storedYear!==thisYear){
+          await sb.from("schedule_shifts").delete().neq("id",0);
+          localStorage.setItem("shifts_year",String(thisYear));
+        } else if(storedYear===0){
+          localStorage.setItem("shifts_year",String(thisYear));
+        }
         // Load active notification
         const notif=await fetchActiveNotif();
         if(notif&&notif.expiresAt&&new Date(notif.expiresAt)>new Date()){
@@ -2740,6 +2962,8 @@ export default function App(){
   function toggleTheme(){setIsDark(v=>{try{localStorage.setItem(THEME_KEY,v?"light":"dark");}catch{}return!v;});}
 
   const activeCatTheme=selectedCategory?.theme||null;
+  // How many px of fixed banners are showing at top
+  const bannerOffset=(managerDisabled&&!isDev?36:0)+(activeNotif&&!managerDisabled?36:0);
   const bugsT={accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",inputBg:"#0a0a18",inputBorder:"#1e1e40"};
 
   function handlePageChange(p){setPage(p);if(p!=="pricing")setSelectedCategory(null);}
@@ -2812,14 +3036,17 @@ export default function App(){
 
       {page==="pricing"&&(
         selectedCategory
-          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem}/>
-          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef}/>
+          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
+          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset}/>
       )}
-      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours}/>}
+      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} bannerOffset={bannerOffset}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
-      {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark}/>}
+      {page==="checklists"&&<ChecklistsPage isDev={isDev} isDark={isDark} bannerOffset={bannerOffset}/>}
+      {page==="suggestions"&&<SuggestionsPage isDark={isDark} isManager={isManager}/>}
+      {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif}/>}      <CustomerCounter/>
+      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
     </div>
   );
 }
