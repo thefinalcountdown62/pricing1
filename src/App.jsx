@@ -1427,6 +1427,54 @@ function BugsPage({T,isManager,onRequireManager,managerDisabled=false}){
 }
 
 // ── DevPage ───────────────────────────────────────────────────────────────────
+// ── Notification Banner ───────────────────────────────────────────────────────
+const NOTIF_COLORS={
+  blue:  {label:"Blue",   bg:"#0d2540",border:"#2a6aaa",text:"#7ab8f5",dot:"#4a9af0",   bubble:"#4a9af0"},
+  green: {label:"Green",  bg:"#0a2a0a",border:"#1a6a1a",text:"#4aaa4a",dot:"#27ae60",   bubble:"#27ae60"},
+  yellow:{label:"Yellow", bg:"#2a2200",border:"#6a5500",text:"#f0c040",dot:"#f0c040",   bubble:"#f0c040"},
+  red:   {label:"Red",    bg:"#2a0a0a",border:"#6a1a1a",text:"#e07070",dot:"#e74c3c",   bubble:"#e74c3c"},
+  purple:{label:"Purple", bg:"#1a0a2a",border:"#4a1a6a",text:"#b070f0",dot:"#9b59b6",   bubble:"#9b59b6"},
+  orange:{label:"Orange", bg:"#2a1400",border:"#6a3000",text:"#e09040",dot:"#e67e22",   bubble:"#e67e22"},
+  teal:  {label:"Teal",   bg:"#0a2424",border:"#1a6060",text:"#40c0c0",dot:"#00b4d8",   bubble:"#00b4d8"},
+  pink:  {label:"Pink",   bg:"#2a0a1a",border:"#6a1a4a",text:"#f070b0",dot:"#e84393",   bubble:"#e84393"},
+};
+
+function NotifBanner({notif,onExpire}){
+  const col=NOTIF_COLORS[notif.color]||NOTIF_COLORS.blue;
+  const expiresAt=notif.expiresAt?new Date(notif.expiresAt):null;
+  const calcLeft=()=>expiresAt?Math.max(0,Math.floor((expiresAt-new Date())/1000)):null;
+  const [timeLeft,setTimeLeft]=useState(calcLeft);
+
+  useEffect(()=>{
+    if(!expiresAt)return;
+    const iv=setInterval(()=>{
+      const s=calcLeft();
+      setTimeLeft(s);
+      if(s<=0){onExpire&&onExpire();clearInterval(iv);}
+    },1000);
+    return()=>clearInterval(iv);
+  },[]);
+
+  function fmtTime(s){
+    if(s===null||s===undefined)return"";
+    if(s<=0)return"Expired";
+    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
+    if(h>0)return`${h}h ${m}m remaining`;
+    if(m>0)return`${m}m ${sec}s remaining`;
+    return`${sec}s remaining`;
+  }
+
+  return(
+    <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:col.bg,borderBottom:`2px solid ${col.border}`,zIndex:199,padding:"9px 16px",animation:"bannerSlide 0.35s cubic-bezier(0.34,1.1,0.64,1)"}}>
+      <div style={{display:"flex",alignItems:"center",gap:8}}>
+        <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
+        <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
+        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"'Courier New',monospace"}}>{fmtTime(timeLeft)}</span>}
+      </div>
+    </div>
+  );
+}
+
 function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange,storeHours=DEFAULT_HOURS,onStoreHoursChange,setItems,activeNotif,onNotifChange}){
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
@@ -2564,54 +2612,6 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
   );
 }
 
-
-// ── Notification Banner ───────────────────────────────────────────────────────
-const NOTIF_COLORS={
-  blue:  {label:"Blue",   bg:"#0d2540",border:"#2a6aaa",text:"#7ab8f5",dot:"#4a9af0",   bubble:"#4a9af0"},
-  green: {label:"Green",  bg:"#0a2a0a",border:"#1a6a1a",text:"#4aaa4a",dot:"#27ae60",   bubble:"#27ae60"},
-  yellow:{label:"Yellow", bg:"#2a2200",border:"#6a5500",text:"#f0c040",dot:"#f0c040",   bubble:"#f0c040"},
-  red:   {label:"Red",    bg:"#2a0a0a",border:"#6a1a1a",text:"#e07070",dot:"#e74c3c",   bubble:"#e74c3c"},
-  purple:{label:"Purple", bg:"#1a0a2a",border:"#4a1a6a",text:"#b070f0",dot:"#9b59b6",   bubble:"#9b59b6"},
-  orange:{label:"Orange", bg:"#2a1400",border:"#6a3000",text:"#e09040",dot:"#e67e22",   bubble:"#e67e22"},
-  teal:  {label:"Teal",   bg:"#0a2424",border:"#1a6060",text:"#40c0c0",dot:"#00b4d8",   bubble:"#00b4d8"},
-  pink:  {label:"Pink",   bg:"#2a0a1a",border:"#6a1a4a",text:"#f070b0",dot:"#e84393",   bubble:"#e84393"},
-};
-
-function NotifBanner({notif,onExpire}){
-  const col=NOTIF_COLORS[notif.color]||NOTIF_COLORS.blue;
-  const expiresAt=notif.expiresAt?new Date(notif.expiresAt):null;
-  const calcLeft=()=>expiresAt?Math.max(0,Math.floor((expiresAt-new Date())/1000)):null;
-  const [timeLeft,setTimeLeft]=useState(calcLeft);
-
-  useEffect(()=>{
-    if(!expiresAt)return;
-    const iv=setInterval(()=>{
-      const s=calcLeft();
-      setTimeLeft(s);
-      if(s<=0){onExpire&&onExpire();clearInterval(iv);}
-    },1000);
-    return()=>clearInterval(iv);
-  },[]);
-
-  function fmtTime(s){
-    if(s===null||s===undefined)return"";
-    if(s<=0)return"Expired";
-    const h=Math.floor(s/3600),m=Math.floor((s%3600)/60),sec=s%60;
-    if(h>0)return`${h}h ${m}m remaining`;
-    if(m>0)return`${m}m ${sec}s remaining`;
-    return`${sec}s remaining`;
-  }
-
-  return(
-    <div style={{position:"fixed",top:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:col.bg,borderBottom:`2px solid ${col.border}`,zIndex:199,padding:"9px 16px",animation:"bannerSlide 0.35s cubic-bezier(0.34,1.1,0.64,1)"}}>
-      <div style={{display:"flex",alignItems:"center",gap:8}}>
-        <div style={{width:8,height:8,borderRadius:"50%",background:col.dot,flexShrink:0,boxShadow:`0 0 8px ${col.dot}88`}}/>
-        <span style={{fontSize:12,fontWeight:600,color:col.text,flex:1}}>{notif.message}</span>
-        {timeLeft!==null&&<span style={{fontSize:10,color:col.text,opacity:0.65,flexShrink:0,fontFamily:"'Courier New',monospace"}}>{fmtTime(timeLeft)}</span>}
-      </div>
-    </div>
-  );
-}
 
 function BottomNav({page,setPage,activeCategoryTheme,isDark}){
   const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
