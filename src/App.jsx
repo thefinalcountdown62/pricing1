@@ -58,6 +58,11 @@ const PACK_SUBS       = ["beer","hard_seltzer"];
 const WINE_SUBS       = ["wine"];
 const AUTO_DEPOSIT    = {"Single":0,"4 Pack":0.20,"6 Pack":0.30,"12 Pack":0.60,"15 Pack":0.75,"18 Pack":0.90,"30 Pack":1.50};
 const THEME_KEY       = "proto-theme";
+const DEFAULT_HOURS=[
+  {days:"Sun",hours:"8 AM – 1 PM"},
+  {days:"Mon – Thu",hours:"8 AM – 6:30 PM"},
+  {days:"Fri – Sat",hours:"8 AM – 7:30 PM"},
+];
 
 function loadTheme(){try{return localStorage.getItem(THEME_KEY)||"dark";}catch{return "dark";}}
 
@@ -1571,17 +1576,17 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.storeHours</div>
         <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
           <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// shown on the schedule page</div>
-          {storeHours.map((row,i)=>(
+          {(storeHours||DEFAULT_HOURS).map((row,i)=>(
             <div key={i} style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
-              <input value={row.days} onChange={e=>{const h=[...storeHours];h[i]={...h[i],days:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
+              <input value={row.days} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],days:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
                 style={{flex:"0 0 90px",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
-              <input value={row.hours} onChange={e=>{const h=[...storeHours];h[i]={...h[i],hours:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
+              <input value={row.hours} onChange={e=>{const h=[...(storeHours||DEFAULT_HOURS)];h[i]={...h[i],hours:e.target.value};onStoreHoursChange&&onStoreHoursChange(h);}}
                 style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"7px 10px",color:DT.text,fontSize:12,fontFamily:"'Courier New',monospace"}}/>
-              <button onClick={()=>{const h=storeHours.filter((_,j)=>j!==i);onStoreHoursChange&&onStoreHoursChange(h);}}
+              <button onClick={()=>{const h=(storeHours||DEFAULT_HOURS).filter((_,j)=>j!==i);onStoreHoursChange&&onStoreHoursChange(h);}}
                 style={{background:"none",border:`1px solid ${DT.cardBorder}`,borderRadius:6,width:28,height:28,color:DT.red,cursor:"pointer",fontSize:13,display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
             </div>
           ))}
-          <button onClick={()=>onStoreHoursChange&&onStoreHoursChange([...storeHours,{days:"",hours:""}])}
+          <button onClick={()=>onStoreHoursChange&&onStoreHoursChange([...(storeHours||DEFAULT_HOURS),{days:"",hours:""}])}
             style={{width:"100%",padding:"8px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em",marginTop:4}}>
             + ADD_ROW →
           </button>
@@ -1996,7 +2001,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
 
         {/* Store hours */}
         <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
-          {storeHours.map(({days,hours},i)=>{
+          {(storeHours||DEFAULT_HOURS).map(({days,hours},i)=>{
             const colors=["#7c83fd",isDark?"#4aaa4a":"#2a7a2a","#e67e22"];
             return(
               <div key={i} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
@@ -2130,14 +2135,13 @@ async function saveTaxRate(r){
   await sb.from("app_settings").upsert({key:"tax_rate",value:String(r)},{onConflict:"key"});
 }
 
-const DEFAULT_HOURS=[
-  {days:"Sun",hours:"8 AM – 1 PM"},
-  {days:"Mon – Thu",hours:"8 AM – 6:30 PM"},
-  {days:"Fri – Sat",hours:"8 AM – 7:30 PM"},
-];
 async function fetchStoreHours(){
-  const {data}=await sb.from("app_settings").select("value").eq("key","store_hours").single();
-  return data?JSON.parse(data.value):DEFAULT_HOURS;
+  try{
+    const {data}=await sb.from("app_settings").select("value").eq("key","store_hours").single();
+    if(!data||!data.value||data.value==="null")return DEFAULT_HOURS;
+    const parsed=JSON.parse(data.value);
+    return Array.isArray(parsed)&&parsed.length>0?parsed:DEFAULT_HOURS;
+  }catch{return DEFAULT_HOURS;}
 }
 async function saveStoreHours(h){
   await sb.from("app_settings").upsert({key:"store_hours",value:JSON.stringify(h)},{onConflict:"key"});
