@@ -984,7 +984,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
       )}
 
       {/* Mass delete confirm modal */}
-      {massSelectMode&&selected.size>0&&(
+      {massSelectMode&&(
         <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:448,zIndex:300,animation:"slideDown 0.2s ease"}}>
           <div style={{background:"#1a0a0a",border:"1px solid #5a2a2a",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"0 8px 32px rgba(0,0,0,0.6)"}}>
             <div style={{fontSize:13,color:"#e07070",fontWeight:600}}>{selected.size} item{selected.size!==1?"s":""} selected</div>
@@ -1131,7 +1131,11 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
               </button>
               <div style={{display:"grid",gridTemplateRows:mapOpen?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
                 <div style={{overflow:"hidden"}}>
-                  <FloorPlan pinZone={form.mapZone} onSelectZone={z=>setForm(f=>({...f,mapZone:f.mapZone===z?null:z}))} accent={accentColor}/>
+                  <FloorPlan pinZone={form.mapZone} onSelectZone={z=>{
+                    const newZone=form.mapZone===z?null:z;
+                    const zoneLabel=newZone?FLOOR_ZONES.find(fz=>fz.key===newZone)?.label||"":"";
+                    setForm(f=>({...f,mapZone:newZone,location:zoneLabel||f.location}));
+                  }} accent={accentColor}/>
                   {form.mapZone&&(
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}>
                       <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label}</span>
@@ -1281,6 +1285,9 @@ function BugsPage({T,isManager,onRequireManager}){
   const [showForm,setShowForm]=useState(false);
   const [form,setForm]=useState({title:"",description:"",severity:"Medium"});
   const inp={width:"100%",background:T.inputBg||"#0f1117",border:`1px solid ${T.inputBorder||"#2a3050"}`,borderRadius:10,padding:"10px 12px",color:"#f0f0f0",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
+  useEffect(()=>{
+    sb.from("known_bugs").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
+  },[]);
   return(
     <div style={{padding:"20px 14px",fontFamily:"'Georgia','Times New Roman',serif"}}>
       <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>🐛 Known Bugs</div>
@@ -1313,22 +1320,25 @@ function BugsPage({T,isManager,onRequireManager}){
 }
 
 // ── DevPage ───────────────────────────────────────────────────────────────────
-function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange}){
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange,managerDisabledProp=false,onManagerDisabledChange}){
   const [knownBugs,setKnownBugs]=useState([]);
   const [reports,setReports]=useState([]);
-  const [managerDisabled,setManagerDisabled]=useState(false);
+  const [managerDisabled,setManagerDisabled]=useState(managerDisabledProp);
 
-  // Load known bugs, reports and managerDisabled from Supabase
+  // Load known bugs, reports from Supabase
   useEffect(()=>{
     sb.from("known_bugs").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
     sb.from("bug_reports").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setReports(data);});
-    sb.from("app_settings").select("value").eq("key","manager_disabled").single().then(({data})=>{if(data)setManagerDisabled(data.value==="true");});
   },[]);
+
+  // Sync managerDisabled from parent
+  useEffect(()=>{setManagerDisabled(managerDisabledProp);},[managerDisabledProp]);
 
   async function toggleManagerDisabled(){
     const next=!managerDisabled;
     setManagerDisabled(next);
     await sb.from("app_settings").upsert({key:"manager_disabled",value:String(next)},{onConflict:"key"});
+    onManagerDisabledChange&&onManagerDisabledChange(next);
   }
   const [showAddBug,setShowAddBug]=useState(false);
   const [bugForm,setBugForm]=useState({title:"",description:"",severity:"Medium",status:"Open"});
@@ -1502,6 +1512,13 @@ function parseHours(startTime,endTime){
   const diff=(eh*60+em)-(sh*60+sm);
   return Math.max(0,diff/60);
 }
+function fmt12(t){
+  if(!t)return"";
+  const [h,m]=t.split(":").map(Number);
+  const ampm=h>=12?"PM":"AM";
+  const h12=h%12||12;
+  return `${h12}:${String(m).padStart(2,"0")} ${ampm}`;
+}
 
 function SchedulePage({isManager,isDark,onUnlock}){
   const now=new Date();
@@ -1659,7 +1676,7 @@ function SchedulePage({isManager,isDark,onUnlock}){
                   </div>
                   <div style={{flex:1}}>
                     <div style={{fontSize:15,fontWeight:600,color:text}}>{s.name}</div>
-                    <div style={{fontSize:12,color:sub}}>{s.startTime} – {s.endTime} · {hrs.toFixed(1)}h</div>
+                    <div style={{fontSize:12,color:sub}}>{fmt12(s.startTime)} – {fmt12(s.endTime)} · {hrs.toFixed(1)}h</div>
                   </div>
                   <div style={{textAlign:"right",marginRight:4}}>
                     <div style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)}</div>
@@ -2112,8 +2129,8 @@ export default function App(){
   const [selectedCategory,setSelectedCategory]=useState(null);
   const [scrollToItem,setScrollToItem]=useState(null);
   const [items,setItems]=useState([]);
-  const [isDev,setIsDev]=useState(false);
-  const [isManager,setIsManager]=useState(false);
+  const [isDev,setIsDev]=useState(()=>{try{return sessionStorage.getItem("isDev")==="true";}catch{return false;}});
+  const [isManager,setIsManager]=useState(()=>{try{return sessionStorage.getItem("isManager")==="true";}catch{return false;}});
   const [showPinModal,setShowPinModal]=useState(false);
   const [pinInput,setPinInput]=useState("");
   const [pinError,setPinError]=useState(false);
@@ -2121,35 +2138,30 @@ export default function App(){
   const [auditLog,setAuditLog]=useState([]);
   const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
   const [loading,setLoading]=useState(true);
+  const [managerDisabled,setManagerDisabled]=useState(false);
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
     async function init(){
       try{
-        // Load items
         const {data:itemData}=await sb.from("items").select("*").order("name");
         if(itemData&&itemData.length>0){
           setItems(itemData.map(row=>({
-            id:row.id,
-            name:row.name,
-            category:row.category,
-            subcategory:row.subcategory||"",
-            price:parseFloat(row.price),
-            location:row.location||"",
-            notes:row.notes||"",
-            inventory:row.inventory??null,
-            outOfStock:row.out_of_stock||false,
-            mapZone:row.map_zone||null,
-            expiryDate:row.expiry_date||"",
-            packSize:row.pack_size||null,
-            containerType:row.container_type||null,
+            id:row.id, name:row.name, category:row.category,
+            subcategory:row.subcategory||"", price:parseFloat(row.price),
+            location:row.location||"", notes:row.notes||"",
+            inventory:row.inventory??null, outOfStock:row.out_of_stock||false,
+            mapZone:row.map_zone||null, expiryDate:row.expiry_date||"",
+            packSize:row.pack_size||null, containerType:row.container_type||null,
             deposit:row.deposit!=null?parseFloat(row.deposit):null,
             wineType:row.wine_type||null,
           })));
         }
-        // Load tax rate
         const rate=await fetchTaxRate();
         setTaxRate(rate);
+        // Load managerDisabled
+        const {data:md}=await sb.from("app_settings").select("value").eq("key","manager_disabled").single();
+        if(md)setManagerDisabled(md.value==="true");
       }catch(e){console.error("Init error:",e);}
       finally{setLoading(false);}
     }
@@ -2165,14 +2177,17 @@ export default function App(){
   }
 
   function submitPin(){
+    if(managerDisabled&&pinInput===MANAGER_PIN){setPinError(true);setPinInput("");return;}
     if(pinInput===MANAGER_PIN||pinInput===DEV_PIN){
       setIsManager(true);
       if(pinInput===DEV_PIN)setIsDev(true);
+      try{sessionStorage.setItem("isManager","true");if(pinInput===DEV_PIN)sessionStorage.setItem("isDev","true");}catch{}
       setShowPinModal(false);setPinInput("");setPinError(false);
     } else {setPinError(true);setPinInput("");}
   }
   function logout(){
     setIsManager(false);setIsDev(false);
+    try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}
     hasShownWelcomeRef.current={dev:false,manager:false};
   }
   function toggleTheme(){setIsDark(v=>{try{localStorage.setItem(THEME_KEY,v?"light":"dark");}catch{}return!v;});}
@@ -2222,7 +2237,7 @@ export default function App(){
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} onRequireManager={()=>setShowPinModal(true)}/></div>}
-      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v){setIsManager(false);setIsDev(false);try{sessionStorage.removeItem("isManager");sessionStorage.removeItem("isDev");}catch{}}}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
     </div>
   );
 }
