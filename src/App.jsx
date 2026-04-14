@@ -1,174 +1,109 @@
-import { useState, useEffect, useRef } from "react";
-import { supabase } from "./supabase.js";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
-const PACK_SIZES      = ["Single", "4 Pack", "6 Pack", "12 Pack", "15 Pack", "18 Pack", "30 Pack"];
-const CONTAINER_TYPES = ["Can", "Bottle"];
-const WINE_TYPES      = ["Red", "White", "Rosé", "Sparkling", "Other"];
-const SEVERITY_LEVELS = ["Low", "Medium", "High", "Critical"];
-const THEME_KEY       = "beer-pricing-theme";
-const MANAGER_PIN     = "3018";
-const DEV_PIN         = "1306";
-const AUTH_KEY        = "beer-pricing-auth";
-const DEV_AUTH_KEY    = "beer-pricing-dev-auth";
+// ── Supabase ───────────────────────────────────────────────────────────────────
+const SUPABASE_URL = "https://tfetbksdzbvxnahyxfad.supabase.co";
+const SUPABASE_KEY = "sb_publishable_RmrvpSeQPV367nQ5Xefryw_MGLHJqK1";
+const sb = createClient(SUPABASE_URL, SUPABASE_KEY);
 
-function loadTheme()   { try { return localStorage.getItem(THEME_KEY) || "dark"; } catch { return "dark"; } }
-function saveTheme(t)  { try { localStorage.setItem(THEME_KEY, t); } catch {} }
-function loadAuth()    { try { return localStorage.getItem(AUTH_KEY) === "true"; } catch { return false; } }
-function saveAuth(v)   { try { localStorage.setItem(AUTH_KEY, v ? "true" : "false"); } catch {} }
-function loadDevAuth() { try { return localStorage.getItem(DEV_AUTH_KEY) === "true"; } catch { return false; } }
-function saveDevAuth(v){ try { localStorage.setItem(DEV_AUTH_KEY, v ? "true" : "false"); } catch {} }
+// ── Categories ────────────────────────────────────────────────────────────────
+const CATEGORIES = [
+  {
+    key:"beverages_alcoholic", name:"Alcohol", icon:"🍺",
+    theme:{bg:"#0f1117",header:"linear-gradient(160deg,#1a1f2e,#161b27)",accent:"#f0c040",accentText:"#0f1117",card:"#1a1f2e",border:"#2a3050",sub:"#6b7280",badge:"#252c42",badgeBorder:"#3a4260",badgeText:"#9ba8c0",oosOverlay:"rgba(15,17,23,0.6)"},
+    subcategories:[{key:"beer",name:"Beer",icon:"🍺"},{key:"wine",name:"Wine",icon:"🍷"},{key:"spirits",name:"Spirits",icon:"🥃"},{key:"hard_seltzer",name:"Hard Seltzer",icon:"🫧"},{key:"other_alcohol",name:"Other",icon:"🍶"}],
+  },
+  {
+    key:"beverages_na", name:"Beverages", icon:"🥤",
+    theme:{bg:"#0a1a0f",header:"linear-gradient(160deg,#0f2a18,#0a1a0f)",accent:"#2ecc71",accentText:"#0a1a0f",card:"#0f2018",border:"#1a4028",sub:"#4a8060",badge:"#0f2820",badgeBorder:"#1a4030",badgeText:"#5a9070",oosOverlay:"rgba(10,26,15,0.6)"},
+    subcategories:[{key:"soda",name:"Soda",icon:"🥤"},{key:"water",name:"Water",icon:"💧"},{key:"juice",name:"Juice",icon:"🧃"},{key:"energy_drinks",name:"Energy Drinks",icon:"⚡"},{key:"sports_drinks",name:"Sports Drinks",icon:"🏃"},{key:"coffee_tea",name:"Coffee & Tea",icon:"☕"},{key:"other_drinks",name:"Other",icon:"🫙"}],
+  },
+  {
+    key:"snacks_candy", name:"Snacks & Candy", icon:"🍫",
+    theme:{bg:"#1a0a00",header:"linear-gradient(160deg,#2a1400,#1a0a00)",accent:"#ff6b35",accentText:"#fff",card:"#200f00",border:"#3a2010",sub:"#806040",badge:"#281500",badgeBorder:"#3a2010",badgeText:"#906040",oosOverlay:"rgba(26,10,0,0.6)"},
+    subcategories:[{key:"chips",name:"Chips & Salty",icon:"🥨"},{key:"candy",name:"Candy",icon:"🍬"},{key:"gum_mints",name:"Gum & Mints",icon:"🌿"},{key:"nuts",name:"Nuts",icon:"🥜"},{key:"other_snacks",name:"Other",icon:"🍪"}],
+  },
+  {
+    key:"grocery", name:"Grocery", icon:"🛒",
+    theme:{bg:"#0a0a1a",header:"linear-gradient(160deg,#141428,#0a0a1a)",accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",badge:"#101028",badgeBorder:"#202048",badgeText:"#6060a0",oosOverlay:"rgba(10,10,26,0.6)"},
+    subcategories:[{key:"dairy",name:"Dairy",icon:"🥛"},{key:"bread",name:"Bread & Crackers",icon:"🍞"},{key:"pantry",name:"Pantry",icon:"🥫"},{key:"cooking",name:"Cooking",icon:"🧂"},{key:"frozen",name:"Frozen",icon:"🧊"},{key:"other_grocery",name:"Other",icon:"🛒"}],
+  },
+  {
+    key:"tobacco_nicotine", name:"Tobacco", icon:"🚬",
+    theme:{bg:"#111008",header:"linear-gradient(160deg,#1e1c0e,#111008)",accent:"#c8a84b",accentText:"#111008",card:"#181608",border:"#302c14",sub:"#706840",badge:"#201e08",badgeBorder:"#302c14",badgeText:"#907840",oosOverlay:"rgba(17,16,8,0.6)"},
+    subcategories:[{key:"cigarettes",name:"Cigarettes",icon:"🚬"},{key:"cigars",name:"Cigars",icon:"💨"},{key:"nicotine_pouches",name:"Nicotine Pouches",icon:"🟢"},{key:"dip_snuff",name:"Dip & Snuff",icon:"🥫"},{key:"other_tobacco",name:"Other",icon:"📦"}],
+  },
+  {
+    key:"household", name:"Household", icon:"🏠",
+    theme:{bg:"#0a1218",header:"linear-gradient(160deg,#0f1e28,#0a1218)",accent:"#00b4d8",accentText:"#0a1218",card:"#0f1a24",border:"#1a2e3c",sub:"#405870",badge:"#0f2030",badgeBorder:"#1a3040",badgeText:"#506880",oosOverlay:"rgba(10,18,24,0.6)"},
+    subcategories:[{key:"cleaning",name:"Cleaning",icon:"🧹"},{key:"paper_goods",name:"Paper Goods",icon:"🧻"},{key:"kitchen_basics",name:"Kitchen",icon:"🍽️"},{key:"personal_care",name:"Personal Care",icon:"🧴"},{key:"other_household",name:"Other",icon:"🏠"}],
+  },
+  {
+    key:"misc", name:"Misc", icon:"📦",
+    theme:{bg:"#121212",header:"linear-gradient(160deg,#1c1c1c,#121212)",accent:"#a0a0a0",accentText:"#121212",card:"#1a1a1a",border:"#2e2e2e",sub:"#585858",badge:"#1f1f1f",badgeBorder:"#303030",badgeText:"#686868",oosOverlay:"rgba(18,18,18,0.6)"},
+    subcategories:[{key:"misc_other",name:"Other",icon:"📦"}],
+  },
+  {
+    key:"print_cards", name:"Print & Cards", icon:"📰",
+    theme:{bg:"#18080a",header:"linear-gradient(160deg,#280e12,#18080a)",accent:"#e84393",accentText:"#fff",card:"#200c10",border:"#381420",sub:"#704050",badge:"#200c10",badgeBorder:"#381420",badgeText:"#904060",oosOverlay:"rgba(24,8,10,0.6)"},
+    subcategories:[{key:"newspapers",name:"Newspapers",icon:"📰"},{key:"magazines",name:"Magazines",icon:"📖"},{key:"greeting_cards",name:"Greeting Cards",icon:"💌"},{key:"other_print",name:"Other",icon:"📋"}],
+  },
+];
 
-const MANAGER_PIN_KEY = "beer-pricing-manager-pin";
-function loadManagerPin() { try { return localStorage.getItem(MANAGER_PIN_KEY) || MANAGER_PIN; } catch { return MANAGER_PIN; } }
-function saveManagerPin(p) { try { localStorage.setItem(MANAGER_PIN_KEY, p); } catch {} }
+const SEVERITY_LEVELS = ["Low","Medium","High","Critical"];
+const PACK_SIZES      = ["Single","4 Pack","6 Pack","12 Pack","15 Pack","18 Pack","30 Pack"];
+const CONTAINER_TYPES = ["Can","Bottle"];
+const WINE_TYPES      = ["Red","White","Rosé","Sparkling","Other"];
+const PACK_SUBS       = ["beer","hard_seltzer"];
+const WINE_SUBS       = ["wine"];
+const AUTO_DEPOSIT    = {"Single":0,"4 Pack":0.20,"6 Pack":0.30,"12 Pack":0.60,"15 Pack":0.75,"18 Pack":0.90,"30 Pack":1.50};
+const THEME_KEY       = "proto-theme";
 
-// ── dev page theme (always dark, coding aesthetic) ────────────────────────────
-const DT = {
-  appBg:       "#0a0e1a",
-  headerBg:    "linear-gradient(160deg,#0d1120,#0a0e1a)",
-  cardBg:      "#0f1525",
-  cardBorder:  "#1e2d4a",
-  accent:      "#00d4ff",
-  accentDim:   "#00d4ff22",
-  accentText:  "#0a0e1a",
-  text:        "#c8d8f0",
-  subText:     "#4a6080",
-  inputBg:     "#080c18",
-  inputBorder: "#1e2d4a",
-  badgeBg:     "#0f1a2e",
-  badgeBorder: "#1e3050",
-  badgeText:   "#4a8ab0",
-  sectionColor:"#00d4ff",
-  mutedText:   "#2a4060",
-  green:       "#00ff88",
-  red:         "#ff4466",
-};
+function loadTheme(){try{return localStorage.getItem(THEME_KEY)||"dark";}catch{return "dark";}}
 
-const MANAGER_DISABLED_KEY = "beer-pricing-manager-disabled";
-function loadManagerDisabled() { try { return localStorage.getItem(MANAGER_DISABLED_KEY) === "true"; } catch { return false; } }
-function saveManagerDisabled(v) { try { localStorage.setItem(MANAGER_DISABLED_KEY, v ? "true" : "false"); } catch {} }
-
-function fromDB(row) {
-  return {
-    id:            row.id,
-    name:          row.name,
-    category:      row.category,
-    packSize:      row.pack_size      || "Single",
-    containerType: row.container_type || "Bottle",
-    wineType:      row.wine_type      || "Other",
-    price:         parseFloat(row.price)   || 0,
-    deposit:       parseFloat(row.deposit) || 0,
-    location:      row.location       || "",
-    outOfStock:    row.out_of_stock   || false,
-  };
-}
-function toDB(item) {
-  return {
-    id:             item.id,
-    name:           item.name,
-    category:       item.category,
-    pack_size:      item.packSize,
-    container_type: item.containerType,
-    wine_type:      item.wineType,
-    price:          item.price,
-    deposit:        item.deposit || 0,
-    location:       item.location || "",
-    out_of_stock:   item.outOfStock || false,
-  };
+function emptyAlcoholForm(sub){
+  if(PACK_SUBS.includes(sub)) return {packSize:"6 Pack",containerType:"Can",deposit:"0.30"};
+  if(WINE_SUBS.includes(sub)) return {wineType:"Red"};
+  return {};
 }
 
-const emptyBeerForm = { name:"", packSize:"6 Pack", containerType:"Can",    price:"", deposit:"", location:"", wineType:"Other", outOfStock:false };
-const emptyWineForm = { name:"", packSize:"Single", containerType:"Bottle", price:"", deposit:"", location:"", wineType:"Red",   outOfStock:false };
-
-// ── themes ────────────────────────────────────────────────────────────────────
-function buildThemes(mode) {
-  const d = mode === "dark";
-  return {
-    beer: {
-      appBg:d?"#0f1117":"#f0f4ff", headerBg:d?"linear-gradient(160deg,#1a1f2e,#161b27)":"linear-gradient(160deg,#dce4f8,#c8d4f0)",
-      headerBorder:d?"#2a2f42":"#b0bedd", accent:"#f0c040", accentText:"#0f1117",
-      cardBg:d?"#1a1f2e":"#ffffff", cardBorder:d?"#2a3050":"#d0d8f0",
-      badgeBg:d?"#252c42":"#e8edfb", badgeBorder:d?"#3a4260":"#c0cae8", badgeText:d?"#9ba8c0":"#5060a0",
-      inputBg:d?"#0f1117":"#f8faff", inputBorder:d?"#2e3450":"#c0cae8",
-      searchBg:d?"#1e2435":"#edf1ff", selectBg:d?"#1e2435":"#edf1ff",
-      sectionColor:"#f0c040", formCardBg:d?"#1a1f2e":"#ffffff", formCardBorder:d?"#2a3050":"#d0d8f0",
-      text:d?"#f0f0f0":"#1a1f2e", subText:d?"#6b7280":"#7080a0", oosOverlay:d?"rgba(15,17,23,0.6)":"rgba(240,244,255,0.6)",
-      navBg:d?"#13161f":"#e8edfb", navBorder:d?"#2a2f42":"#b0bedd",
-    },
-    wine: {
-      appBg:d?"#1a0a0e":"#fff5f7", headerBg:d?"linear-gradient(160deg,#3a0d1a,#2a0a12,#1f1008)":"linear-gradient(160deg,#f5d0d8,#ecc0c8)",
-      headerBorder:d?"#5a2030":"#e0a0b0", accent:d?"#c8922a":"#a0601a", accentText:d?"#fff8f0":"#fff8f0",
-      cardBg:d?"#2a0f18":"#ffffff", cardBorder:d?"#4a1a28":"#f0c0cc",
-      badgeBg:d?"#3a1020":"#fde8ec", badgeBorder:d?"#5a2030":"#f0a0b0", badgeText:d?"#c9a0a8":"#904060",
-      inputBg:d?"#1a0a0e":"#fff8fa", inputBorder:d?"#5a2030":"#f0a0b0",
-      searchBg:d?"#2a0f18":"#fde8ec", selectBg:d?"#2a0f18":"#fde8ec",
-      sectionColor:d?"#c8922a":"#a0601a", formCardBg:d?"#2a0f18":"#ffffff", formCardBorder:d?"#4a1a28":"#f0c0cc",
-      text:d?"#f0f0f0":"#2a0f18", subText:d?"#6b7280":"#904060", oosOverlay:d?"rgba(26,10,14,0.6)":"rgba(255,245,247,0.6)",
-      navBg:d?"#130408":"#fde8ec", navBorder:d?"#5a2030":"#e0a0b0",
-    },
-  };
+function buildThemeVariant(theme,mode){
+  if(mode==="light"){
+    return {
+      ...theme,
+      bg: "#f8f8f0",
+      header: "linear-gradient(160deg,#eeeee0,#e8e8d8)",
+      card: "#ffffff",
+      border: "#d8d8c8",
+      badge: "#f0f0e8",
+      badgeBorder: "#d0d0c0",
+      badgeText: "#606050",
+      sub: "#909080",
+      oosOverlay: "rgba(248,248,240,0.6)",
+    };
+  }
+  return theme;
 }
 
-function buildCSV(items) {
-  const h = "Name,Category,Pack Size,Container,Wine Type,Price,Deposit,Location,Out of Stock";
-  const rows = items.map(i=>[
-    `"${(i.name||"").replace(/"/g,'""')}"`, i.category,
-    i.category==="Beer"?(i.packSize||""):"",
-    i.category==="Beer"?(i.containerType||""):"",
-    i.category==="Wine"?(i.wineType||"Other"):"",
+
+const DT={appBg:"#0a0e1a",headerBg:"linear-gradient(160deg,#0d1120,#0a0e1a)",cardBg:"#0f1525",cardBorder:"#1e2d4a",accent:"#00d4ff",accentDim:"#00d4ff22",accentText:"#0a0e1a",text:"#c8d8f0",subText:"#4a6080",inputBg:"#080c18",inputBorder:"#1e2d4a",green:"#00ff88",red:"#ff4466"};
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+function buildCSV(items){
+  const h="Name,Category,Subcategory,Pack Size,Container,Wine Type,Price,Deposit,Location,Out of Stock";
+  const rows=items.map(i=>[
+    `"${(i.name||"").replace(/"/g,'""')}"`,i.category,i.subcategory||"",
+    PACK_SUBS.includes(i.subcategory)?(i.packSize||""):"",
+    PACK_SUBS.includes(i.subcategory)?(i.containerType||""):"",
+    WINE_SUBS.includes(i.subcategory)?(i.wineType||""):"",
     (i.price||0).toFixed(2),(i.deposit||0).toFixed(2),
-    `"${(i.location||"").replace(/"/g,'""')}"`,
-    i.outOfStock?"Yes":"No",
+    `"${(i.location||"").replace(/"/g,'""')}"`,i.outOfStock?"Yes":"No",
   ].join(","));
   return [h,...rows].join("\n");
 }
 
-function parseCSV(text) {
-  const lines=text.trim().split("\n").map(l=>l.trim()).filter(Boolean);
-  if(lines.length<2) return {items:[],errors:["File appears empty."]};
-  const header=lines[0].toLowerCase();
-  if(!header.includes("name")||!header.includes("price")) return {items:[],errors:["Missing required columns."]};
-  const cols=lines[0].split(",").map(c=>c.trim().toLowerCase().replace(/\s+/g,"_"));
-  function col(row,name){const i=cols.indexOf(name);return i===-1?"":(row[i]||"").replace(/^"|"$/g,"").trim();}
-  const imported=[],errors=[];
-  for(let i=1;i<lines.length;i++){
-    const row=[];let cur="",inQ=false;
-    for(const ch of lines[i]+","){if(ch==='"'){inQ=!inQ;}else if(ch===','&&!inQ){row.push(cur);cur="";}else cur+=ch;}
-    const name=col(row,"name"),price=parseFloat(col(row,"price"));
-    if(!name||isNaN(price)){errors.push(`Row ${i+1}: skipped`);continue;}
-    const category=col(row,"category")||"Beer";
-    imported.push({id:Date.now()+i,name,category:["Beer","Wine"].includes(category)?category:"Beer",
-      packSize:col(row,"pack_size")||"Single",containerType:col(row,"container")||"Bottle",
-      wineType:col(row,"wine_type")||"Other",price,deposit:parseFloat(col(row,"deposit"))||0,
-      location:col(row,"location")||"",outOfStock:col(row,"out_of_stock").toLowerCase()==="yes"});
-  }
-  return {items:imported,errors};
-}
-
-const lbl = T => ({display:"block",fontSize:12,fontWeight:600,letterSpacing:"0.06em",textTransform:"uppercase",color:T.subText,marginBottom:7,marginTop:16});
-const inp = T => ({width:"100%",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,padding:"11px 14px",color:T.text,fontSize:16,fontFamily:"inherit",boxSizing:"border-box"});
-
-// ── swipe row ─────────────────────────────────────────────────────────────────
-function SwipeRow({onSwipeLeft,children}) {
-  const startX=useRef(null);
-  const [offset,setOffset]=useState(0);
-  const TH=72;
-  return (
-    <div style={{position:"relative",overflow:"hidden",borderRadius:12,marginBottom:10}}>
-      <div style={{position:"absolute",right:0,top:0,bottom:0,width:TH,background:"#f0c040",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"0 12px 12px 0"}}>
-        <span style={{fontSize:20}}>✏️</span>
-      </div>
-      <div style={{transform:`translateX(${offset}px)`,transition:offset===0?"transform 0.2s":"none"}}
-        onTouchStart={e=>{startX.current=e.touches[0].clientX;}}
-        onTouchMove={e=>{if(startX.current===null)return;const dx=e.touches[0].clientX-startX.current;if(dx<0)setOffset(Math.max(dx,-TH));}}
-        onTouchEnd={()=>{if(offset<=-TH){setOffset(0);onSwipeLeft();}else setOffset(0);startX.current=null;}}
-      >{children}</div>
-    </div>
-  );
-}
-
-// ── comet hook ────────────────────────────────────────────────────────────────
-function useCometCanvas(btnRef,canvasRef,active) {
+// ── Comet hook ────────────────────────────────────────────────────────────────
+function useCometCanvas(btnRef,canvasRef,active){
   useEffect(()=>{
     const btn=btnRef.current,canvas=canvasRef.current;
     if(!btn||!canvas)return;
@@ -202,870 +137,2092 @@ function useCometCanvas(btnRef,canvasRef,active) {
   },[]);
 }
 
-// ── combined comet buttons ────────────────────────────────────────────────────
-function CombinedCometButtons({showCancel,onAdd,onCancel,accent,accentText,cancelBg,cancelText,cancelBorder}) {
+function CometButton({onClick,accent,accentText,cancelBg,cancelText,cancelBorder,showCancel}){
   const addBtnRef=useRef(null),addCanvasRef=useRef(null);
   const canBtnRef=useRef(null),canCanvasRef=useRef(null);
   const addActive=useRef(!showCancel),canActive=useRef(showCancel);
   useEffect(()=>{addActive.current=!showCancel;canActive.current=showCancel;},[showCancel]);
   useCometCanvas(addBtnRef,addCanvasRef,addActive);
   useCometCanvas(canBtnRef,canCanvasRef,canActive);
-  return (
-    <div style={{display:"inline-flex",alignItems:"stretch",position:"relative"}}>
-      <div style={{maxWidth:showCancel?120:0,overflow:"hidden",transition:"max-width 0.35s cubic-bezier(0.34,1.1,0.64,1)",position:"relative"}}>
+
+  // Card shuffle: both buttons occupy the same space, one on top of the other.
+  // Active button: translateY(0), scale(1), zIndex 2, full opacity
+  // Inactive button: translateY(10px), scale(0.92), zIndex 1, low opacity — peeking behind
+  const addStyle={
+    position:"absolute",top:0,left:0,
+    transform:showCancel?"translateY(8px) scale(0.93)":"translateY(0) scale(1)",
+    opacity:showCancel?0.45:1,
+    zIndex:showCancel?1:2,
+    transition:"transform 0.32s cubic-bezier(0.34,1.1,0.64,1), opacity 0.32s ease",
+    pointerEvents:showCancel?"none":"auto",
+  };
+  const canStyle={
+    position:"absolute",top:0,left:0,
+    transform:showCancel?"translateY(0) scale(1)":"translateY(-8px) scale(0.93)",
+    opacity:showCancel?1:0.45,
+    zIndex:showCancel?2:1,
+    transition:"transform 0.32s cubic-bezier(0.34,1.1,0.64,1), opacity 0.32s ease",
+    pointerEvents:showCancel?"auto":"none",
+  };
+
+  return(
+    <div style={{position:"relative",width:100,height:36,flexShrink:0}}>
+      {/* Add button — back when form open */}
+      <div style={{...addStyle,position:"absolute"}}>
+        <div style={{position:"relative",display:"inline-flex"}}>
+          <canvas ref={addCanvasRef} style={{position:"absolute",top:-4,left:-4,pointerEvents:"none",zIndex:3}}/>
+          <button ref={addBtnRef} onClick={()=>onClick("add")}
+            style={{background:accent,color:accentText,border:"none",borderRadius:8,padding:"8px 0",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",height:36,width:100,textAlign:"center"}}>
+            + Add
+          </button>
+        </div>
+      </div>
+      {/* Cancel button — back when form closed */}
+      <div style={{...canStyle,position:"absolute"}}>
         <div style={{position:"relative",display:"inline-flex"}}>
           <canvas ref={canCanvasRef} style={{position:"absolute",top:-4,left:-4,pointerEvents:"none",zIndex:3}}/>
-          <button ref={canBtnRef} onClick={onCancel} style={{whiteSpace:"nowrap",background:cancelBg,color:cancelText,border:`1px solid ${cancelBorder}`,borderRight:"none",borderRadius:"8px 0 0 8px",padding:"8px 12px",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit",display:"block"}}>✕ Cancel</button>
-        </div>
-      </div>
-      <div style={{position:"relative",display:"inline-flex"}}>
-        <canvas ref={addCanvasRef} style={{position:"absolute",top:-4,left:-4,pointerEvents:"none",zIndex:3}}/>
-        <button ref={addBtnRef} onClick={onAdd} style={{background:accent,color:accentText,border:"none",borderRadius:showCancel?"0 8px 8px 0":"8px",transition:"border-radius 0.35s",padding:"8px 14px",fontWeight:700,fontSize:14,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap"}}>+ Add</button>
-      </div>
-    </div>
-  );
-}
-
-// ── item card ─────────────────────────────────────────────────────────────────
-function ItemCard({item,T,isWine,onEdit,onDelete,onToggleStock}) {
-  const [expanded,setExpanded]=useState(false);
-  const total=item.price+(item.deposit||0),oos=item.outOfStock;
-  return (
-    <div style={{background:T.cardBg,border:`1px solid ${oos?"#e74c3c55":T.cardBorder}`,borderRadius:12,padding:14,cursor:"pointer",position:"relative",overflow:"hidden"}} onClick={()=>setExpanded(e=>!e)}>
-      {oos&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:T.oosOverlay,zIndex:1,borderRadius:12,pointerEvents:"none"}}/>}
-      {oos&&<div style={{position:"absolute",top:6,right:8,fontSize:10,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"#e74c3c",zIndex:2}}>Out of Stock</div>}
-      <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",position:"relative",zIndex:2}}>
-        <div style={{flex:1}}>
-          <div style={{fontSize:16,fontWeight:600,marginBottom:6,color:oos?T.subText:T.text,textDecoration:oos?"line-through":"none"}}>{item.name}</div>
-          <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-            {isWine&&item.wineType&&<span style={{background:T.badgeBg,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 8px",fontSize:11,color:T.badgeText}}>🍷 {item.wineType}</span>}
-            {!isWine&&<span style={{background:T.badgeBg,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 8px",fontSize:11,color:T.badgeText}}>{item.packSize}</span>}
-            {!isWine&&<span style={{background:T.badgeBg,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 8px",fontSize:11,color:T.badgeText}}>{item.containerType==="Can"?"🥫":"🍶"} {item.containerType}</span>}
-          </div>
-        </div>
-        <div style={{textAlign:"right",paddingLeft:12,position:"relative",zIndex:2}}>
-          <div style={{fontSize:20,fontWeight:700,color:oos?T.subText:T.accent}}>${item.price.toFixed(2)}</div>
-          {item.deposit>0&&<div style={{fontSize:11,color:T.badgeText,marginTop:2}}>+${item.deposit.toFixed(2)} dep.</div>}
-        </div>
-      </div>
-      {expanded&&(
-        <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.cardBorder}`,position:"relative",zIndex:2}} onClick={e=>e.stopPropagation()}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10}}>
-            <span style={{color:T.subText,fontSize:13}}>{!isWine&&item.deposit>0?"Total w/ deposit:":"Total:"}</span>
-            <span style={{fontWeight:700,color:T.accent,fontSize:16}}>${total.toFixed(2)}</span>
-          </div>
-          {item.location&&<div style={{fontSize:12,color:T.badgeText,marginBottom:10,display:"flex",alignItems:"center",gap:6}}><span>📍</span><span>{item.location}</span></div>}
-          <button onClick={onToggleStock} style={{width:"100%",marginBottom:8,padding:"9px",background:oos?"#2e1a1a":T.badgeBg,border:`1px solid ${oos?"#5a2a2a":T.badgeBorder}`,borderRadius:8,color:oos?"#e07070":T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
-            {oos?"✅ Mark In Stock":"🚫 Mark Out of Stock"}
+          <button ref={canBtnRef} onClick={()=>onClick("cancel")}
+            style={{background:cancelBg,color:cancelText,border:`1px solid ${cancelBorder}`,borderRadius:8,padding:"8px 0",fontWeight:600,fontSize:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",height:36,width:100,textAlign:"center"}}>
+            ✕ Cancel
           </button>
-          <div style={{display:"flex",gap:8}}>
-            <button onClick={onEdit} style={{flex:1,background:T.badgeBg,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"9px",color:T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit</button>
-            <button onClick={onDelete} style={{flex:1,background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,padding:"9px",color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
-          </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }
 
-// ── bug card ──────────────────────────────────────────────────────────────────
-function BugCard({bug,T,isDev,onDelete}) {
-  const [expanded,setExpanded]=useState(false);
-  const severityColor={Low:"#27ae60",Medium:"#f0c040",High:"#e67e22",Critical:"#e74c3c"}[bug.severity]||"#9ba8c0";
-  return (
-    <div style={{background:T.cardBg,border:`1px solid ${T.cardBorder}`,borderRadius:12,padding:14,marginBottom:10,cursor:"pointer"}} onClick={()=>setExpanded(e=>!e)}>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+// ── LockIcon ──────────────────────────────────────────────────────────────────
+function LockIcon({unlocked,size=18}){
+  // Shackle moves up and rotates when unlocking
+  return(
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" style={{display:"block",overflow:"visible"}}>
+      <style>{`
+        @keyframes shackleUnlock{
+          0%{transform:rotate(0deg) translateY(0px);}
+          40%{transform:rotate(-35deg) translateY(-2px);}
+          100%{transform:rotate(-35deg) translateY(-2px);}
+        }
+        @keyframes shackleLock{
+          0%{transform:rotate(-35deg) translateY(-2px);}
+          60%{transform:rotate(5deg) translateY(1px);}
+          100%{transform:rotate(0deg) translateY(0px);}
+        }
+        @keyframes bodyPop{
+          0%{transform:scale(1);}
+          50%{transform:scale(1.12);}
+          100%{transform:scale(1);}
+        }
+        .shackle-unlocked{animation:shackleUnlock 0.38s cubic-bezier(0.34,1.2,0.64,1) 0.5s forwards;}
+        .shackle-locked{animation:shackleLock 0.32s cubic-bezier(0.34,1.1,0.64,1) 0.5s forwards;}
+        .body-pop{animation:bodyPop 0.3s ease 0.6s both;}
+      `}</style>
+      {/* Lock body */}
+      <rect x="3" y="11" width="18" height="12" rx="2.5"
+        fill="currentColor" opacity={unlocked?1:0.85}
+        className="body-pop" key={String(unlocked)}/>
+      {/* Keyhole */}
+      <circle cx="12" cy="16.5" r="1.5" fill={unlocked?"rgba(255,255,255,0.6)":"rgba(0,0,0,0.4)"}
+        style={{transition:"fill 0.3s ease"}}/>
+      <rect x="11.1" y="16.5" width="1.8" height="2.5" rx="0.9"
+        fill={unlocked?"rgba(255,255,255,0.6)":"rgba(0,0,0,0.4)"}
+        style={{transition:"fill 0.3s ease"}}/>
+      {/* Shackle */}
+      <g className={unlocked?"shackle-unlocked":"shackle-locked"}
+        style={{transformOrigin:"7px 11px"}} key={`shackle-${unlocked}`}>
+        <path d="M7 11V8a5 5 0 0 1 10 0v3"
+          stroke="currentColor"
+          strokeWidth="2.2" strokeLinecap="round" fill="none"/>
+      </g>
+    </svg>
+  );
+}
+
+// ── Floor plan ────────────────────────────────────────────────────────────────
+const FLOOR_ZONES = [
+  {key:"back_room",         label:"Back Room",          x:8,   y:8,   w:22,  h:22,  color:"#141a14", tappable:true},
+  {key:"counter",           label:"Counter",            x:51,  y:8,   w:18,  h:9,   color:"#2a1e0a", tappable:true},
+  {key:"snacks_1",          label:"Snacks 1",           x:70,  y:8,   w:16,  h:8,   color:"#1e2a1e", tappable:true},
+  {key:"wine_rack_4",       label:"Wine Rack 4",        x:33,  y:10,  w:5,   h:20,  color:"#1a2a3a", tappable:true},
+  {key:"wine_rack_5",       label:"Wine Rack 5",        x:33,  y:8,   w:11,  h:4,   color:"#1a2a3a", tappable:true},
+  {key:"wine_rack_6",       label:"Wine Rack 6",        x:39,  y:10,  w:5,   h:20,  color:"#1a2a3a", tappable:true},
+  {key:"candy_3",           label:"Candy 3",            x:45,  y:10,  w:6,   h:20,  color:"#2a1a14", tappable:true},
+  {key:"wine_rack_1",       label:"Wine Rack 1",        x:18,  y:38,  w:16,  h:8,   color:"#1a2a3a", tappable:true},
+  {key:"wine_rack_2",       label:"Wine Rack 2",        x:13,  y:38,  w:4,   h:8,   color:"#1a2a3a", tappable:true},
+  {key:"beer_wine_case_5",  label:"Beer/Wine Case 5",   x:13,  y:50,  w:6,   h:5,   color:"#0e2030", tappable:true},
+  {key:"beer_case_4",       label:"Beer Case 4",        x:13,  y:56,  w:6,   h:7,   color:"#0e2030", tappable:true},
+  {key:"meat_block",        label:"Meat Block (Table)", x:22,  y:52,  w:9,   h:8,   color:"#2a1a0a", tappable:true},
+  {key:"wine_rack_3",       label:"Wine Rack 3",        x:33,  y:48,  w:6,   h:22,  color:"#1a2a3a", tappable:true},
+  {key:"cigar_case_2",      label:"Cigar Case 2",       x:40,  y:44,  w:8,   h:20,  color:"#2a1a1a", tappable:true},
+  {key:"greeting_cards",    label:"Greeting Cards",     x:51,  y:28,  w:6,   h:38,  color:"#1a1e2a", tappable:true},
+  {key:"rack_sep_1",        label:"",                   x:58,  y:28,  w:2,   h:38,  color:"#0d0d0d", tappable:false},
+  {key:"candy_2",           label:"Candy 2",            x:61,  y:28,  w:6,   h:38,  color:"#2a1a14", tappable:true},
+  {key:"rack_sep_2",        label:"",                   x:68,  y:28,  w:2,   h:38,  color:"#0d0d0d", tappable:false},
+  {key:"candy_1",           label:"Candy 1",            x:71,  y:28,  w:6,   h:38,  color:"#2a1a14", tappable:true},
+  {key:"rack_sep_3",        label:"",                   x:78,  y:28,  w:2,   h:38,  color:"#0d0d0d", tappable:false},
+  {key:"grocery_1",         label:"Grocery 1",          x:81,  y:28,  w:6,   h:20,  color:"#1a2a14", tappable:true},
+  {key:"grocery_2",         label:"Grocery 2",          x:89,  y:44,  w:7,   h:10,  color:"#1a2a14", tappable:true},
+  {key:"newspaper_stand",   label:"Newspaper Stand",    x:51,  y:69,  w:12,  h:8,   color:"#1a1a2a", tappable:true},
+  {key:"cooler_3",          label:"Cooler 3",           x:89,  y:8,   w:7,   h:8,   color:"#0e2030", tappable:true},
+  {key:"cooler_4",          label:"Cooler 4",           x:89,  y:17,  w:7,   h:8,   color:"#0e2030", tappable:true},
+  {key:"cooler_5",          label:"Cooler 5",           x:89,  y:26,  w:7,   h:8,   color:"#0e2030", tappable:true},
+  {key:"cooler_6",          label:"Cooler 6",           x:89,  y:35,  w:7,   h:8,   color:"#0e2030", tappable:true},
+  {key:"cooler_2",          label:"Cooler 2",           x:89,  y:55,  w:7,   h:9,   color:"#0e2030", tappable:true},
+  {key:"cooler_1",          label:"Cooler 1",           x:89,  y:65,  w:7,   h:9,   color:"#0e2030", tappable:true},
+  {key:"household",         label:"Household",          x:89,  y:75,  w:7,   h:18,  color:"#1a2a2a", tappable:true},
+  {key:"beer_case_3",       label:"Beer Case 3",        x:13,  y:82,  w:6,   h:12,  color:"#0e2030", tappable:true},
+  {key:"beer_case_2",       label:"Beer Case 2",        x:20,  y:82,  w:6,   h:12,  color:"#0e2030", tappable:true},
+  {key:"beer_case_1",       label:"Beer Case 1",        x:27,  y:82,  w:6,   h:12,  color:"#0e2030", tappable:true},
+  {key:"ice_cream_3",       label:"Ice Cream 3",        x:34,  y:82,  w:5,   h:12,  color:"#0e2a3a", tappable:true},
+  {key:"ice_cream_2",       label:"Ice Cream 2",        x:40,  y:82,  w:6,   h:12,  color:"#0e2a3a", tappable:true},
+  {key:"ice_cream_1",       label:"Ice Cream 1",        x:47,  y:82,  w:9,   h:12,  color:"#0e2a3a", tappable:true},
+  {key:"cigar_case_1",      label:"Cigar Case 1",       x:60,  y:79,  w:18,  h:15,  color:"#2a1a1a", tappable:true},
+];
+
+function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
+  const [hovered,setHovered]=useState(null);
+  const W=540, H=440;
+  function px(x){return x/100*W;}
+  function py(y){return y/100*H;}
+  function pw(w){return w/100*W;}
+  function ph(h){return h/100*H;}
+  return(
+    <div style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
+        {/* Outer walls — red like the drawing */}
+        <rect x={px(8)} y={py(7)} width={pw(88)} height={ph(89)} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={2}/>
+        {/* Back room inner walls */}
+        <line x1={px(30)} y1={py(8)} x2={px(30)} y2={py(30)} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5}/>
+        <line x1={px(8)}  y1={py(30)} x2={px(30)} y2={py(30)} stroke="rgba(255,255,255,0.25)" strokeWidth={1.5}/>
+        {/* Left wall horizontal shelf bar */}
+        <line x1={px(13)} y1={py(35)} x2={px(33)} y2={py(35)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5}/>
+        {/* Diagonal display lines */}
+        <line x1={px(30)} y1={py(37)} x2={px(38)} y2={py(46)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} strokeLinecap="round"/>
+        <line x1={px(34)} y1={py(35)} x2={px(42)} y2={py(44)} stroke="rgba(255,255,255,0.2)" strokeWidth={1.5} strokeLinecap="round"/>
+        {/* Entrance gap bottom center */}
+        <rect x={px(43)} y={ph(95)} width={pw(10)} height={12} fill="#080808"/>
+        <text x={px(48)} y={ph(99)} textAnchor="middle" fontSize={7} fill="rgba(255,255,255,0.2)" fontFamily="inherit">ENTRANCE</text>
+        {/* Zones */}
+        {FLOOR_ZONES.map(zone=>{
+          if(!zone.tappable) return <rect key={zone.key} x={px(zone.x)} y={py(zone.y)} width={pw(zone.w)} height={ph(zone.h)} fill="#0a0a0a" stroke="rgba(255,255,255,0.12)" strokeWidth={0.5}/>;
+          const isPin=pinZone===zone.key;
+          const isHov=hovered===zone.key;
+          const x=px(zone.x),y=py(zone.y),w=pw(zone.w),h=ph(zone.h);
+          const cx=x+w/2,cy=y+h/2;
+          return(
+            <g key={zone.key} onClick={()=>!readonly&&onSelectZone&&onSelectZone(zone.key)} onMouseEnter={()=>setHovered(zone.key)} onMouseLeave={()=>setHovered(null)} style={{cursor:readonly?"default":"pointer"}}>
+              <rect x={x} y={y} width={w} height={h} rx={3}
+                fill={isPin?`${accent}35`:isHov&&!readonly?`${zone.color}ff`:`${zone.color}cc`}
+                stroke={isPin?accent:isHov&&!readonly?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.1)"} strokeWidth={isPin?1.5:0.8}/>
+              {isPin&&<rect x={x} y={y} width={w} height={h} rx={3} fill="none" stroke={accent} strokeWidth={1.5} opacity={0.9} filter={`drop-shadow(0 0 5px ${accent})`}/>}
+              {w>24&&h>12&&(
+                <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
+                  fontSize={Math.min(9,Math.max(5.5,Math.min(w/(zone.label.length*0.62),h/2.2)))}
+                  fill={isPin?accent:"rgba(255,255,255,0.6)"} fontWeight={isPin?"700":"400"} fontFamily="inherit"
+                  style={{pointerEvents:"none",userSelect:"none"}}>{zone.label}</text>
+              )}
+              {isPin&&<circle cx={cx} cy={y+7} r={4} fill={accent} filter={`drop-shadow(0 0 6px ${accent})`}/>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ── SwipeRow ──────────────────────────────────────────────────────────────────
+function SwipeRow({onSwipeLeft,children,accentColor}){
+  const startX=useRef(null);
+  const [offset,setOffset]=useState(0);
+  const TH=72;
+  return(
+    <div style={{position:"relative",overflow:"hidden",borderRadius:12,marginBottom:10}}>
+      <div style={{position:"absolute",right:0,top:0,bottom:0,width:TH,background:accentColor||"#f0c040",display:"flex",alignItems:"center",justifyContent:"center",borderRadius:"0 12px 12px 0"}}>
+        <span style={{fontSize:20}}>✏️</span>
+      </div>
+      <div style={{transform:`translateX(${offset}px)`,transition:offset===0?"transform 0.2s":"none"}}
+        onTouchStart={e=>{startX.current=e.touches[0].clientX;}}
+        onTouchMove={e=>{if(startX.current===null)return;const dx=e.touches[0].clientX-startX.current;if(dx<0)setOffset(Math.max(dx,-TH));}}
+        onTouchEnd={()=>{if(offset<=-TH){setOffset(0);onSwipeLeft();}else setOffset(0);startX.current=null;}}
+      >{children}</div>
+    </div>
+  );
+}
+
+// ── ItemCard ──────────────────────────────────────────────────────────────────
+function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
+  const [expanded,setExpanded]=useState(forceExpand);
+  const [pressed,setPressed]=useState(false);
+  const [mapExpanded,setMapExpanded]=useState(false);
+  const [mapMini,setMapMini]=useState(true);
+  const oos=item.outOfStock;
+  const isPackSub=PACK_SUBS.includes(item.subcategory);
+  const isWineSub=WINE_SUBS.includes(item.subcategory);
+  const total=item.price+(item.deposit||0);
+  const hasInventory=item.inventory!=null;
+  const isLowStock=hasInventory&&item.inventory>0&&item.inventory<=5;
+  const zoneName=FLOOR_ZONES.find(z=>z.key===item.mapZone)?.label||item.mapZone;
+  return(
+    <>
+    {/* Fullscreen map takeover */}
+    {mapExpanded&&(
+      <div style={{
+        position:"fixed",inset:0,zIndex:1000,
+        background:"#050810",
+        display:"flex",flexDirection:"column",
+        animation:"fadeIn 0.25s ease",
+      }}>
+        {/* Top bar */}
+        <div style={{
+          display:"flex",alignItems:"center",justifyContent:"space-between",
+          padding:"16px 20px",
+          background:"linear-gradient(180deg,#0a0e1a,transparent)",
+          position:"absolute",top:0,left:0,right:0,zIndex:2,
+        }}>
+          <div>
+            <div style={{fontSize:17,fontWeight:700,color:"#f0f0f0"}}>{item.name}</div>
+            <div style={{fontSize:12,color:T.accent,fontWeight:600,marginTop:2}}>📍 {zoneName}</div>
+          </div>
+          <button
+            onClick={()=>setMapExpanded(false)}
+            style={{background:"rgba(255,255,255,0.08)",backdropFilter:"blur(8px)",border:"1px solid rgba(255,255,255,0.12)",borderRadius:10,width:38,height:38,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:"#f0f0f0",fontSize:18,fontFamily:"inherit"}}>
+            ✕
+          </button>
+        </div>
+
+        {/* Map — centered, fills available space */}
+        <div style={{
+          flex:1,display:"flex",alignItems:"center",justifyContent:"center",
+          padding:"80px 20px 100px",
+        }}>
+          <div style={{width:"100%",maxWidth:480,animation:"modalIn 0.3s cubic-bezier(0.34,1.1,0.64,1)"}}>
+            <FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>
+          </div>
+        </div>
+
+        {/* Bottom zone label */}
+        <div style={{
+          position:"absolute",bottom:0,left:0,right:0,
+          padding:"16px 20px 32px",
+          background:"linear-gradient(0deg,#050810 60%,transparent)",
+        }}>
+          <div style={{display:"flex",alignItems:"center",gap:12,padding:"12px 16px",background:"rgba(255,255,255,0.04)",borderRadius:14,border:`1px solid ${T.accent}28`,backdropFilter:"blur(10px)"}}>
+            <div style={{width:12,height:12,borderRadius:"50%",background:T.accent,flexShrink:0,boxShadow:`0 0 10px ${T.accent}`,animation:"pulse 2s infinite"}}/>
+            <div style={{flex:1}}>
+              <div style={{fontSize:14,fontWeight:700,color:T.accent}}>{zoneName}</div>
+              {item.location&&<div style={{fontSize:11,color:"rgba(255,255,255,0.4)",marginTop:2}}>{item.location}</div>}
+            </div>
+            <div style={{fontSize:10,color:"rgba(255,255,255,0.2)",letterSpacing:"0.05em"}}>TAP ✕ TO CLOSE</div>
+          </div>
+        </div>
+      </div>
+    )}
+
+    <div
+      onClick={()=>setExpanded(e=>!e)}
+      onMouseDown={()=>setPressed(true)}
+      onMouseUp={()=>setPressed(false)}
+      onMouseLeave={()=>setPressed(false)}
+      onTouchStart={()=>setPressed(true)}
+      onTouchEnd={()=>setPressed(false)}
+      style={{
+        background:T.card,border:`1px solid ${oos?"#e74c3c44":isLowStock?"#e67e2244":T.border}`,borderRadius:12,padding:14,
+        cursor:"pointer",position:"relative",overflow:"hidden",
+        transform:pressed?"scale(0.985)":"scale(1)",
+        transition:"transform 0.12s ease, box-shadow 0.2s ease",
+        boxShadow:expanded?`0 4px 20px rgba(0,0,0,0.25)`:pressed?"none":"0 1px 4px rgba(0,0,0,0.1)",
+      }}>
+      {oos&&<div style={{position:"absolute",top:0,left:0,right:0,bottom:0,background:T.oosOverlay,zIndex:1,borderRadius:12,pointerEvents:"none"}}/>}
+      {oos&&<div style={{position:"absolute",top:6,right:8,fontSize:10,fontWeight:700,color:"#e74c3c",zIndex:2,letterSpacing:"0.05em",textTransform:"uppercase"}}>Out of Stock</div>}
+      {!oos&&isLowStock&&<div style={{position:"absolute",top:6,right:8,fontSize:10,fontWeight:700,color:"#e67e22",zIndex:2,letterSpacing:"0.05em",textTransform:"uppercase"}}>Low Stock</div>}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",position:"relative",zIndex:2}}>
         <div style={{flex:1}}>
-          <div style={{fontSize:15,fontWeight:600,color:T.text,marginBottom:4}}>{bug.title}</div>
-          <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:6,background:`${severityColor}22`,color:severityColor,border:`1px solid ${severityColor}44`}}>{bug.severity}</span>
+          <div style={{fontSize:15,fontWeight:600,color:oos?T.sub:"#f0f0f0",marginBottom:6,textDecoration:oos?"line-through":"none"}}>{item.name}</div>
+          <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+            {isPackSub&&item.packSize&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>{item.packSize}</span>}
+            {isPackSub&&item.containerType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>{item.containerType==="Can"?"🥫 Can":"🍶 Bottle"}</span>}
+            {isWineSub&&item.wineType&&<span style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:T.badgeText}}>🍷 {item.wineType}</span>}
+            {hasInventory&&<span style={{background:isLowStock?"#e67e2222":oos?"#e74c3c22":T.badge,border:`1px solid ${isLowStock?"#e67e2244":oos?"#e74c3c44":T.badgeBorder}`,borderRadius:6,padding:"2px 7px",fontSize:11,color:isLowStock?"#e67e22":oos?"#e74c3c":T.badgeText}}>📦 {item.inventory} left</span>}
+            {item.location&&<span style={{fontSize:11,color:T.sub,display:"flex",alignItems:"center",gap:3}}>📍 {item.location}</span>}
+            {item.expiryDate&&(()=>{
+              const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+              if(days>7)return null;
+              const color=days<=0?"#e74c3c":days<=3?"#e74c3c":"#e67e22";
+              return <span style={{background:`${color}22`,border:`1px solid ${color}44`,borderRadius:6,padding:"2px 7px",fontSize:11,color,fontWeight:600}}>{days<=0?"⚠️ Expired":`⚠️ Exp. ${days}d`}</span>;
+            })()}
+          </div>
         </div>
-        <div style={{fontSize:11,color:T.subText,marginLeft:12}}>{bug.status||"Open"}</div>
-      </div>
-      {expanded&&(
-        <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.cardBorder}`}} onClick={e=>e.stopPropagation()}>
-          <p style={{fontSize:13,color:T.text,lineHeight:1.6,marginBottom:isDev?12:0}}>{bug.description}</p>
-          {bug.created_at&&<div style={{fontSize:11,color:T.subText,marginBottom:isDev?8:0}}>Reported: {new Date(bug.created_at).toLocaleDateString()}</div>}
-          {isDev&&<button onClick={onDelete} style={{width:"100%",padding:"9px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── pin modal ─────────────────────────────────────────────────────────────────
-function PinModal({T,title,subtitle,onSubmit,onCancel}) {
-  const [pin,setPin]=useState("");
-  const [err,setErr]=useState(false);
-  return (
-    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
-      <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center"}}>
-        <div style={{fontSize:32,marginBottom:8}}>🔒</div>
-        <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>{title}</div>
-        <div style={{fontSize:13,color:T.subText,marginBottom:20}}>{subtitle}</div>
-        <input type="password" inputMode="numeric" maxLength={4} value={pin}
-          onChange={e=>{setPin(e.target.value);setErr(false);}}
-          onKeyDown={e=>e.key==="Enter"&&onSubmit(pin,setErr)}
-          placeholder="••••" autoFocus
-          style={{width:"100%",background:T.inputBg,border:`2px solid ${err?"#e74c3c":T.inputBorder}`,borderRadius:10,padding:"14px",color:T.text,fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}
-        />
-        {err&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
-        {!err&&<div style={{height:20,marginBottom:12}}/>}
-        <div style={{display:"flex",gap:10}}>
-          <button onClick={onCancel} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.subText,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-          <button onClick={()=>onSubmit(pin,setErr)} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>
+        <div style={{textAlign:"right",paddingLeft:12,flexShrink:0}}>
+          <div style={{fontSize:20,fontWeight:700,color:oos?T.sub:T.accent}}>${item.price.toFixed(2)}</div>
+          {item.deposit>0&&<div style={{fontSize:11,color:T.badgeText,marginTop:1}}>+${item.deposit.toFixed(2)} dep.</div>}
         </div>
       </div>
-    </div>
-  );
-}
-
-// ── main app ──────────────────────────────────────────────────────────────────
-export default function App() {
-  // ── core state ──
-  const [items,setItems]                     = useState([]);
-  const [loading,setLoading]                 = useState(true);
-  const [syncing,setSyncing]                 = useState(false);
-  const [activeCategory,setActiveCategory]   = useState("Beer");
-  const [view,setView]                       = useState("list");
-  const [form,setForm]                       = useState({...emptyBeerForm});
-  const [editId,setEditId]                   = useState(null);
-  const [search,setSearch]                   = useState("");
-  const [filterPack,setFilterPack]           = useState("All");
-  const [filterContainer,setFilterContainer] = useState("All");
-  const [sortBy,setSortBy]                   = useState("name");
-  const [toast,setToast]                     = useState(null);
-  const [confirmDelete,setConfirmDelete]     = useState(null);
-  const [themeMode,setThemeMode]             = useState(loadTheme);
-  // ── auth ──
-  const [isManager,setIsManager]             = useState(loadAuth);
-  const [isDev,setIsDev]                     = useState(loadDevAuth);
-  const [showPinModal,setShowPinModal]       = useState(null); // "manager"|"dev"|null
-  const [pendingAction,setPendingAction]     = useState(null);
-  // ── nav ──
-  const [page,setPage]                       = useState("pricing"); // "pricing"|"bugs"|"dev"
-  // ── bugs ──
-  const [knownBugs,setKnownBugs]             = useState([]);
-  const [bugReports,setBugReports]           = useState([]);
-  const [bugsLoading,setBugsLoading]         = useState(false);
-  const [showReportForm,setShowReportForm]   = useState(false);
-  const [reportForm,setReportForm]           = useState({title:"",description:"",severity:"Medium"});
-  const [showAddBugForm,setShowAddBugForm]   = useState(false);
-  const [newBugForm,setNewBugForm]           = useState({title:"",description:"",severity:"Medium",status:"Open"});
-  // ── pin change ──
-  const [showChangePinForm,setShowChangePinForm] = useState(false);
-  const [changePinForm,setChangePinForm]         = useState({newPin:"",confirmPin:""});
-  const [currentManagerPin,setCurrentManagerPin] = useState(loadManagerPin);
-  const [managerDisabled,setManagerDisabled]     = useState(false);
-  // ── import/export ──
-  const [showExportMenu,setShowExportMenu]   = useState(false);
-  const [importPreview,setImportPreview]     = useState(null);
-  const [showDataModal,setShowDataModal]     = useState(false);
-  const [showPasteModal,setShowPasteModal]   = useState(false);
-  const [pasteText,setPasteText]             = useState("");
-  const fileInputRef = useRef(null);
-
-  const themes = buildThemes(themeMode);
-  const T = activeCategory==="Wine"?themes.wine:themes.beer;
-  const isWine = activeCategory==="Wine";
-  const isDark = themeMode==="dark";
-
-  // ── load items + app settings ──
-  useEffect(()=>{
-    async function fetchItems(){
-      setLoading(true);
-      const {data,error}=await supabase.from("items").select("*").order("name");
-      if(!error&&data)setItems(data.map(fromDB));
-      setLoading(false);
-    }
-    async function fetchSettings(){
-      const {data}=await supabase.from("app_settings").select("*");
-      if(data){
-        const disabled=data.find(r=>r.key==="manager_disabled");
-        if(disabled)setManagerDisabled(disabled.value==="true");
-      }
-    }
-    fetchItems();
-    fetchSettings();
-
-    const itemChannel=supabase.channel("items-realtime")
-      .on("postgres_changes",{event:"*",schema:"public",table:"items"},payload=>{
-        if(payload.eventType==="INSERT"){
-          setItems(prev=>[...prev,fromDB(payload.new)]);
-        } else if(payload.eventType==="UPDATE"){
-          // Re-fetch the full row to ensure all fields including location and out_of_stock are current
-          supabase.from("items").select("*").eq("id",payload.new.id).single()
-            .then(({data})=>{ if(data) setItems(prev=>prev.map(i=>i.id===data.id?fromDB(data):i)); });
-        } else if(payload.eventType==="DELETE"){
-          setItems(prev=>prev.filter(i=>i.id!==payload.old.id));
-        }
-      }).subscribe();
-
-    const settingsChannel=supabase.channel("settings-realtime")
-      .on("postgres_changes",{event:"*",schema:"public",table:"app_settings"},payload=>{
-        if(payload.new&&payload.new.key==="manager_disabled"){
-          setManagerDisabled(payload.new.value==="true");
-        }
-      }).subscribe();
-
-    return()=>{supabase.removeChannel(itemChannel);supabase.removeChannel(settingsChannel);};
-  },[]);
-
-  // ── load bugs when page changes ──
-  useEffect(()=>{
-    if(page!=="bugs"&&page!=="dev")return;
-    async function fetchBugs(){
-      setBugsLoading(true);
-      const [{data:kb},{data:br}]=await Promise.all([
-        supabase.from("known_bugs").select("*").order("created_at",{ascending:false}),
-        supabase.from("bug_reports").select("*").order("created_at",{ascending:false}),
-      ]);
-      if(kb)setKnownBugs(kb);
-      if(br)setBugReports(br);
-      setBugsLoading(false);
-    }
-    fetchBugs();
-  },[page]);
-
-  useEffect(()=>{saveTheme(themeMode);},[themeMode]);
-
-  function showToast(msg,type="success"){setToast({msg,type});setTimeout(()=>setToast(null),2500);}
-
-  // ── auth ──
-  function requireManager(action){
-    if(managerDisabled&&!isDev){showToast("Manager permissions disabled","error");return;}
-    if(isDev||isManager){action();return;}
-    setPendingAction(()=>action);
-    setShowPinModal("manager");
-  }
-  function requireDev(action){
-    if(isDev){action();return;}
-    setPendingAction(()=>action);
-    setShowPinModal("dev");
-  }
-  function handlePinSubmit(pin,setErr){
-    if(showPinModal==="manager"){
-      if(pin===currentManagerPin||pin===DEV_PIN){
-        if(pin===DEV_PIN){setIsDev(true);saveDevAuth(true);setIsManager(true);saveAuth(true);}
-        else{setIsManager(true);saveAuth(true);}
-        setShowPinModal(null);
-        if(pendingAction){pendingAction();setPendingAction(null);}
-      } else {setErr(true);}
-    } else if(showPinModal==="dev"){
-      if(pin===DEV_PIN){
-        setIsDev(true);saveDevAuth(true);setIsManager(true);saveAuth(true);
-        setShowPinModal(null);
-        if(pendingAction){pendingAction();setPendingAction(null);}
-      } else {setErr(true);}
-    }
-  }
-  function logout(){setIsManager(false);saveAuth(false);setIsDev(false);saveDevAuth(false);showToast("Logged out");}
-
-  // ── pricing actions ──
-  function switchCategory(cat){
-    setActiveCategory(cat);setView("list");
-    setSearch("");setFilterPack("All");setFilterContainer("All");setSortBy("name");
-  }
-  function resetFilters(){setSearch("");setFilterPack("All");setFilterContainer("All");setSortBy("name");}
-  function openAdd(){requireManager(()=>{setForm(isWine?{...emptyWineForm}:{...emptyBeerForm});setEditId(null);setView("add");});}
-  function openEdit(item){
-    requireManager(()=>{
-      setForm({name:item.name,packSize:item.packSize||"Single",containerType:item.containerType||"Bottle",
-        price:String(item.price),deposit:item.deposit?String(item.deposit):"",
-        location:item.location||"",wineType:item.wineType||"Other",outOfStock:item.outOfStock||false});
-      setEditId(item.id);setView("edit");
-    });
-  }
-  async function handleSave(){
-    if(!form.name.trim()){showToast("Name is required","error");return;}
-    const price=parseFloat(form.price);
-    if(isNaN(price)||price<0){showToast("Enter a valid price","error");return;}
-    const deposit=isWine?0:(form.deposit!==""?parseFloat(form.deposit):0);
-    const fields={name:form.name.trim(),category:activeCategory,packSize:form.packSize,
-      containerType:form.containerType,price,deposit,location:form.location.trim(),
-      wineType:form.wineType,outOfStock:form.outOfStock};
-    setSyncing(true);
-    if(view==="edit"){
-      const updated={...fields,id:editId};
-      const{error}=await supabase.from("items").update(toDB(updated)).eq("id",editId);
-      if(error){showToast("Save failed","error");}
-      else{
-        // Optimistically update local state immediately
-        setItems(prev=>prev.map(i=>i.id===editId?{...i,...updated}:i));
-        showToast("Updated!");
-      }
-    } else {
-      const newId=Date.now();
-      const{error}=await supabase.from("items").insert(toDB({...fields,id:newId}));
-      if(error){showToast("Save failed","error");}
-      else{showToast(`${isWine?"Wine":"Beer"} added!`);}
-    }
-    setSyncing(false);setView("list");
-  }
-  async function handleDelete(id){
-    setSyncing(true);
-    const{error}=await supabase.from("items").delete().eq("id",id);
-    if(error)showToast("Delete failed","error"); else showToast("Removed","error");
-    setSyncing(false);setConfirmDelete(null);setView("list");
-  }
-  async function toggleOutOfStock(id){
-    requireManager(async()=>{
-      const item=items.find(i=>i.id===id);if(!item)return;
-      const updated={...item,outOfStock:!item.outOfStock};
-      // Optimistically update local state immediately
-      setItems(prev=>prev.map(i=>i.id===id?updated:i));
-      const{error}=await supabase.from("items").update(toDB(updated)).eq("id",id);
-      if(error){
-        // Revert on failure
-        setItems(prev=>prev.map(i=>i.id===id?item:i));
-        showToast("Update failed","error");
-      }
-    });
-  }
-
-  // ── bug actions ──
-  async function submitBugReport(){
-    if(!reportForm.title.trim()||!reportForm.description.trim()){showToast("Title and description required","error");return;}
-    const{data,error}=await supabase.from("bug_reports").insert({
-      title:reportForm.title.trim(),description:reportForm.description.trim(),
-      severity:reportForm.severity,status:"Open"
-    }).select();
-    if(error){console.error("Bug report error:",error);showToast(error.message||"Failed to submit report","error");}
-    else{showToast("Bug report submitted!");setReportForm({title:"",description:"",severity:"Medium"});setShowReportForm(false);
-      const{data:fresh}=await supabase.from("bug_reports").select("*").order("created_at",{ascending:false});
-      if(fresh)setBugReports(fresh);}
-  }
-  async function addKnownBug(){
-    if(!newBugForm.title.trim()||!newBugForm.description.trim()){showToast("Title and description required","error");return;}
-    const{data,error}=await supabase.from("known_bugs").insert({
-      title:newBugForm.title.trim(),description:newBugForm.description.trim(),
-      severity:newBugForm.severity,status:newBugForm.status
-    }).select();
-    if(error){console.error("Known bug error:",error);showToast(error.message||"Failed to add bug","error");}
-    else{showToast("Known bug added!");setNewBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBugForm(false);
-      const{data:fresh}=await supabase.from("known_bugs").select("*").order("created_at",{ascending:false});
-      if(fresh)setKnownBugs(fresh);}
-  }
-  async function deleteKnownBug(id){
-    const{error}=await supabase.from("known_bugs").delete().eq("id",id);
-    if(error)showToast("Failed","error"); else{showToast("Removed","error");setKnownBugs(prev=>prev.filter(b=>b.id!==id));}
-  }
-  async function deleteBugReport(id){
-    const{error}=await supabase.from("bug_reports").delete().eq("id",id);
-    if(error)showToast("Failed","error"); else{showToast("Removed","error");setBugReports(prev=>prev.filter(b=>b.id!==id));}
-  }
-
-  // ── import/export ──
-  async function toggleManagerDisabled(){
-    const next=!managerDisabled;
-    // Force local state immediately so UI responds
-    setManagerDisabled(next);
-    // Use upsert to guarantee the row exists and gets updated
-    const{error}=await supabase.from("app_settings").upsert({key:"manager_disabled",value:next?"true":"false"},{onConflict:"key"});
-    if(error){
-      // Revert on failure
-      setManagerDisabled(!next);
-      showToast(error.message||"Failed to update setting","error");
-      return;
-    }
-    showToast(next?"Manager permissions disabled":"Manager permissions restored");
-  }
-
-  function changeManagerPin(){
-    if(changePinForm.newPin.length<4){showToast("PIN must be 4 digits","error");return;}
-    if(!/^\d{4}$/.test(changePinForm.newPin)){showToast("PIN must be 4 numbers","error");return;}
-    if(changePinForm.newPin!==changePinForm.confirmPin){showToast("PINs don't match","error");return;}
-    if(changePinForm.newPin===DEV_PIN){showToast("Cannot use developer PIN","error");return;}
-    saveManagerPin(changePinForm.newPin);
-    setCurrentManagerPin(changePinForm.newPin);
-    setChangePinForm({newPin:"",confirmPin:""});
-    setShowChangePinForm(false);
-    showToast("Manager PIN updated!");
-  }
-
-  async function bulkInsert(newItems){setSyncing(true);const rows=newItems.map(i=>toDB({...i,id:Date.now()+Math.random()}));const{error}=await supabase.from("items").insert(rows);if(error)showToast("Import failed","error");else showToast(`Imported ${newItems.length} items!`);setSyncing(false);}
-  async function replaceAll(newItems){setSyncing(true);await supabase.from("items").delete().neq("id",0);const rows=newItems.map((i,idx)=>toDB({...i,id:Date.now()+idx}));const{error}=await supabase.from("items").insert(rows);if(error)showToast("Import failed","error");else showToast(`Imported ${newItems.length} items!`);setSyncing(false);}
-  function confirmImport(mode){const incoming=importPreview.items;if(mode==="replace")replaceAll(incoming);else bulkInsert(incoming);setImportPreview(null);}
-  async function confirmPasteImport(){try{const parsed=JSON.parse(pasteText.trim());if(!Array.isArray(parsed))throw new Error();await replaceAll(parsed.map(b=>({outOfStock:false,location:"",wineType:"Other",...b,category:b.category||"Beer"})));setShowPasteModal(false);setPasteText("");}catch{showToast("Invalid data","error");}}
-  function downloadExport(subset,filename){const csv=buildCSV(subset);const blob=new Blob([csv],{type:"text/csv"});const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download=filename;a.click();URL.revokeObjectURL(url);setShowExportMenu(false);showToast("Download started!");}
-  function handleImportFile(e){const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=ev=>{setImportPreview(parseCSV(ev.target.result));};reader.readAsText(file);e.target.value="";setShowExportMenu(false);}
-
-  // ── filtered list ──
-  const hasActiveFilters = search||filterPack!=="All"||filterContainer!=="All"||sortBy!=="name";
-  const filtered=items
-    .filter(b=>b.category===activeCategory)
-    .filter(b=>b.name.toLowerCase().includes(search.toLowerCase()))
-    .filter(b=>!isWine&&filterPack!=="All"?b.packSize===filterPack:true)
-    .filter(b=>!isWine&&filterContainer!=="All"?b.containerType===filterContainer:true)
-    .sort((a,b)=>{
-      if(isWine&&sortBy==="type"){const ta=WINE_TYPES.indexOf(a.wineType||"Other"),tb=WINE_TYPES.indexOf(b.wineType||"Other");return ta!==tb?ta-tb:a.name.localeCompare(b.name);}
-      if(sortBy==="name")return a.name.localeCompare(b.name);
-      if(sortBy==="price_desc")return b.price-a.price;
-      return a.price-b.price;
-    });
-  const beerGroups=PACK_SIZES.filter(p=>filtered.some(b=>b.packSize===p));
-  const wineGroups=sortBy==="type"?WINE_TYPES.filter(t=>filtered.some(b=>(b.wineType||"Other")===t)):null;
-  const countInCat=items.filter(b=>b.category===activeCategory).length;
-
-  // ── shared styles ──
-  const modalOverlay={position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20};
-
-  return (
-    <div style={{minHeight:"100vh",background:T.appBg,color:T.text,fontFamily:"'Georgia','Times New Roman',serif",maxWidth:480,margin:"0 auto",position:"relative",transition:"background 0.3s",paddingBottom:70}}>
-
-      {/* ── PIN MODAL ── */}
-      {showPinModal&&(
-        <PinModal T={T}
-          title={showPinModal==="dev"?"Developer Access":"Manager Access"}
-          subtitle={showPinModal==="dev"?"Enter the developer PIN":"Enter the manager PIN to continue"}
-          onSubmit={handlePinSubmit}
-          onCancel={()=>{setShowPinModal(null);setPendingAction(null);}}
-        />
-      )}
-
-      {/* ── MANAGER DISABLED BANNER ── */}
-      {managerDisabled&&!isDev&&(
-        <div style={{position:"sticky",top:0,zIndex:200,background:"#e67e22",padding:"10px 16px",display:"flex",alignItems:"center",gap:10}}>
-          <span style={{fontSize:16}}>⚠️</span>
-          <span style={{fontSize:12,fontWeight:600,color:"#fff",lineHeight:1.4}}>Manager permissions temporarily disabled by developer. Please be patient while it is resolved.</span>
-        </div>
-      )}
-      {toast&&<div style={{position:"fixed",bottom:80,left:"50%",transform:"translateX(-50%)",padding:"12px 24px",borderRadius:30,color:"#fff",fontWeight:600,fontSize:14,zIndex:999,boxShadow:"0 4px 20px rgba(0,0,0,0.5)",fontFamily:"inherit",whiteSpace:"nowrap",background:toast.type==="error"?"#e74c3c":"#27ae60"}}>{toast.msg}</div>}
-
-      {/* ══════════════════════════════════════════════
-          PRICING PAGE
-      ══════════════════════════════════════════════ */}
-      {page==="pricing"&&<>
-        {/* HEADER */}
-        <div style={{background:T.headerBg,borderBottom:`1px solid ${T.headerBorder}`,padding:"14px 14px 0",position:"sticky",top:0,zIndex:100,transition:"background 0.3s"}}>
-          {/* top row */}
-          <div style={{display:"flex",gap:8,marginBottom:12,alignItems:"center"}}>
-            <div style={{flex:1,display:"flex",borderRadius:10,overflow:"hidden",border:`1px solid ${T.headerBorder}`}}>
-              {["Beer","Wine"].map(cat=>(
-                <button key={cat} onClick={()=>switchCategory(cat)} style={{flex:1,padding:"10px 0",border:"none",cursor:"pointer",fontFamily:"inherit",fontWeight:700,fontSize:15,transition:"background 0.3s,color 0.3s",background:activeCategory===cat?T.accent:"transparent",color:activeCategory===cat?T.accentText:T.subText}}>
-                  {cat==="Beer"?"🍺 Beer":"🍷 Wine"}
-                </button>
-              ))}
-            </div>
-            {syncing&&<div style={{fontSize:11,color:T.subText,whiteSpace:"nowrap"}}>⏳</div>}
-            <button onClick={()=>isDev||isManager?logout():requireManager(()=>{})} style={{background:T.cardBg,border:`1px solid ${T.cardBorder}`,borderRadius:8,width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              {isDev?"👨‍💻":isManager?"🔓":"🔒"}
-            </button>
-            <button onClick={()=>setThemeMode(m=>m==="dark"?"light":"dark")} style={{background:T.cardBg,border:`1px solid ${T.cardBorder}`,borderRadius:8,width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
-              {isDark?"☀️":"🌙"}
-            </button>
-            <div style={{position:"relative"}}>
-              <button onClick={()=>setShowExportMenu(v=>!v)} style={{background:T.cardBg,border:`1px solid ${T.cardBorder}`,borderRadius:8,width:38,height:38,fontSize:18,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>⇅</button>
-              {showExportMenu&&(
-                <div style={{position:"absolute",right:0,top:44,background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:12,padding:6,zIndex:300,minWidth:215,boxShadow:"0 6px 24px rgba(0,0,0,0.35)"}}>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:T.subText,padding:"6px 12px 4px"}}>Export</div>
-                  <button onClick={()=>downloadExport(items.filter(b=>b.category===activeCategory),`${activeCategory.toLowerCase()}-pricing.csv`)} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 12px",background:"none",border:"none",color:T.text,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}><span>📥</span> Download {isWine?"Wines":"Beers"} CSV</button>
-                  <button onClick={()=>downloadExport(items,"all-pricing.csv")} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 12px",background:"none",border:"none",color:T.text,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}><span>📥</span> Download All CSV</button>
-                  <div style={{height:1,background:T.cardBorder,margin:"6px 0"}}/>
-                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:T.subText,padding:"4px 12px"}}>Import</div>
-                  <button onClick={()=>fileInputRef.current?.click()} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 12px",background:"none",border:"none",color:T.text,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}><span>📂</span> Import from CSV</button>
-                  <button onClick={()=>{setShowPasteModal(true);setShowExportMenu(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 12px",background:"none",border:"none",color:T.text,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}><span>📋</span> Paste Data</button>
-                  <div style={{height:1,background:T.cardBorder,margin:"6px 0"}}/>
-                  <button onClick={()=>{setShowDataModal(true);setShowExportMenu(false);}} style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"10px 12px",background:"none",border:"none",color:T.text,fontSize:14,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}><span>📤</span> Show my data</button>
+      {/* Animated expand section */}
+      <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
+        <div style={{overflow:"hidden"}}>
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,position:"relative",zIndex:2}} onClick={e=>e.stopPropagation()}>
+            {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:13,color:T.sub}}>Total w/ deposit:</span><span style={{fontSize:14,fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
+            {item.notes&&<div style={{fontSize:12,color:T.sub,marginBottom:10,padding:"8px 10px",background:T.badge,borderRadius:8,border:`1px solid ${T.badgeBorder}`,lineHeight:1.5}}>📝 {item.notes}</div>}
+            {item.expiryDate&&(()=>{
+              const days=Math.ceil((new Date(item.expiryDate)-new Date())/(1000*60*60*24));
+              const color=days<=0?"#e74c3c":days<=3?"#e74c3c":days<=7?"#e67e22":"#27ae60";
+              const bg=days<=3?"#2e1a1a":days<=7?"#2e1e0a":"#0a1e0a";
+              const border=days<=3?"#5a2a2a":days<=7?"#5a3a0a":"#1a4a1a";
+              return(
+                <div style={{fontSize:12,color,marginBottom:10,padding:"8px 10px",background:bg,borderRadius:8,border:`1px solid ${border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <span>{days<=0?"⚠️ Expired":days<=7?"⚠️ Expiring soon":"✓ Next expiry"}</span>
+                  <span style={{fontWeight:700}}>{days<=0?"Expired":days===1?"Tomorrow":`${days} days — ${new Date(item.expiryDate+"T12:00").toLocaleDateString("en",{month:"short",day:"numeric"})}`}</span>
                 </div>
-              )}
-              <input ref={fileInputRef} type="file" accept=".csv,text/csv" style={{display:"none"}} onChange={handleImportFile}/>
-            </div>
-          </div>
-
-          {/* title + add */}
-          <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:12}}>
-            <span style={{fontSize:24}}>{isWine?"🍷":"🍺"}</span>
-            <div>
-              <div style={{fontSize:19,fontWeight:700,color:T.accent}}>{isWine?"Wine Pricing":"Beer Pricing"}</div>
-              <div style={{fontSize:11,color:T.subText,letterSpacing:"0.05em",textTransform:"uppercase"}}>{countInCat} item{countInCat!==1?"s":""} · live</div>
-            </div>
-            <CombinedCometButtons showCancel={view!=="list"} onAdd={openAdd} onCancel={()=>setView("list")}
-              accent={T.accent} accentText={T.accentText} cancelBg={T.cardBg} cancelText={T.subText} cancelBorder={T.inputBorder}/>
-          </div>
-
-          {/* search + filters */}
-          {view==="list"&&(
-            <div style={{paddingBottom:12}}>
-              <div style={{display:"flex",gap:8,marginBottom:8,alignItems:"center"}}>
-                <input style={{flex:1,background:T.searchBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,padding:"10px 14px",color:T.text,fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}
-                  placeholder={`🔍  Search ${isWine?"wines":"beers"}...`} value={search} onChange={e=>setSearch(e.target.value)}/>
-                {hasActiveFilters&&(
-                  <button onClick={resetFilters} title="Reset filters" style={{background:T.badgeBg,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"10px 12px",color:T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>✕ Reset</button>
-                )}
-              </div>
-              <div style={{display:"flex",gap:6}}>
-                {!isWine&&<>
-                  <select value={filterPack} onChange={e=>setFilterPack(e.target.value)} style={{flex:1,background:T.selectBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"7px 4px",color:T.subText,fontSize:12,fontFamily:"inherit"}}>
-                    <option value="All">All Sizes</option>{PACK_SIZES.map(p=><option key={p} value={p}>{p}</option>)}
-                  </select>
-                  <select value={filterContainer} onChange={e=>setFilterContainer(e.target.value)} style={{flex:1,background:T.selectBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"7px 4px",color:T.subText,fontSize:12,fontFamily:"inherit"}}>
-                    <option value="All">Can & Bottle</option>{CONTAINER_TYPES.map(c=><option key={c} value={c}>{c}</option>)}
-                  </select>
-                </>}
-                <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{flex:1,background:T.selectBg,border:`1px solid ${T.inputBorder}`,borderRadius:8,padding:"7px 4px",color:T.subText,fontSize:12,fontFamily:"inherit"}}>
-                  <option value="name">A–Z</option>
-                  {isWine&&<option value="type">By Type</option>}
-                  <option value="price_asc">Price ↑</option>
-                  <option value="price_desc">Price ↓</option>
-                </select>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* CONFIRM DELETE */}
-        {confirmDelete&&(
-          <div style={modalOverlay}>
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:16,padding:24,width:"100%",maxWidth:320}}>
-              <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:10}}>Remove Item?</div>
-              <div style={{fontSize:14,color:T.subText,marginBottom:20}}>"{confirmDelete.name}" will be deleted for everyone.</div>
-              <div style={{display:"flex",gap:10}}>
-                <button onClick={()=>setConfirmDelete(null)} style={{flex:1,background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,padding:13,color:T.subText,fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={()=>handleDelete(confirmDelete.id)} style={{flex:2,background:"#e74c3c",border:"none",borderRadius:10,padding:13,color:"#fff",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* IMPORT PREVIEW */}
-        {importPreview&&(
-          <div style={modalOverlay}>
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:16,padding:22,width:"100%",maxWidth:360,maxHeight:"80vh",overflowY:"auto"}}>
-              <div style={{fontSize:18,fontWeight:700,color:T.text,marginBottom:6}}>📂 Import Preview</div>
-              <div style={{fontSize:13,color:T.subText,marginBottom:14}}>Found <strong style={{color:T.accent}}>{importPreview.items.length}</strong> items.{importPreview.errors.length>0&&` ${importPreview.errors.length} skipped.`}</div>
-              <div style={{maxHeight:200,overflowY:"auto",marginBottom:14,borderRadius:8,border:`1px solid ${T.cardBorder}`}}>
-                {importPreview.items.slice(0,30).map((item,i)=>(
-                  <div key={i} style={{padding:"8px 12px",borderBottom:`1px solid ${T.cardBorder}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-                    <div><div style={{fontSize:13,fontWeight:600,color:T.text}}>{item.name}</div><div style={{fontSize:11,color:T.subText}}>{item.category}</div></div>
-                    <div style={{fontSize:14,fontWeight:700,color:T.accent}}>${item.price.toFixed(2)}</div>
+              );
+            })()}
+            {/* Map location — starts minimized */}
+            {item.mapZone&&(
+              <div style={{marginBottom:10}}>
+                <button onClick={e=>{e.stopPropagation();setMapMini(m=>!m);}} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"8px 12px",cursor:"pointer",fontFamily:"inherit",marginBottom:mapMini?0:6}}>
+                  <div style={{display:"flex",alignItems:"center",gap:7}}>
+                    <span style={{fontSize:12}}>📍</span>
+                    <span style={{fontSize:12,fontWeight:600,color:T.accent}}>{zoneName}</span>
                   </div>
-                ))}
-              </div>
-              <div style={{display:"flex",flexDirection:"column",gap:8,marginBottom:12}}>
-                <button onClick={()=>confirmImport("merge")} style={{padding:"11px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>➕ Add to existing</button>
-                <button onClick={()=>confirmImport("replace")} style={{padding:"11px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:10,color:"#e07070",fontSize:14,fontWeight:600,cursor:"pointer",fontFamily:"inherit"}}>🔄 Replace all data</button>
-              </div>
-              <button onClick={()=>setImportPreview(null)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-            </div>
-          </div>
-        )}
-
-        {/* SHOW DATA MODAL */}
-        {showDataModal&&(
-          <div style={modalOverlay}>
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:6}}>📋 Your Data</div>
-              <textarea readOnly value={JSON.stringify(items,null,2)} style={{flex:1,minHeight:200,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,padding:12,color:T.text,fontSize:11,fontFamily:"monospace",resize:"none",lineHeight:1.5}} onFocus={e=>e.target.select()}/>
-              <div style={{display:"flex",gap:10,marginTop:14}}>
-                <button onClick={()=>setShowDataModal(false)} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
-                <button onClick={()=>{navigator.clipboard.writeText(JSON.stringify(items)).then(()=>showToast("Copied!")).catch(()=>showToast("Long-press to copy","error"));}} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copy to Clipboard</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* PASTE DATA MODAL */}
-        {showPasteModal&&(
-          <div style={modalOverlay}>
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column"}}>
-              <div style={{fontSize:17,fontWeight:700,color:T.text,marginBottom:6}}>📋 Paste Data</div>
-              <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Paste your data here..." style={{flex:1,minHeight:200,background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10,padding:12,color:T.text,fontSize:11,fontFamily:"monospace",resize:"none",lineHeight:1.5}}/>
-              <div style={{display:"flex",gap:10,marginTop:14}}>
-                <button onClick={()=>{setShowPasteModal(false);setPasteText("");}} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={confirmPasteImport} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import Data</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* LIST VIEW */}
-        {view==="list"&&(
-          <div style={{padding:"14px 14px 20px"}} onClick={()=>setShowExportMenu(false)}>
-            {loading&&<div style={{textAlign:"center",color:T.subText,padding:"60px 20px",fontSize:15}}>Loading…</div>}
-            {!loading&&filtered.length===0&&<div style={{textAlign:"center",color:T.subText,padding:"60px 20px",fontSize:15,lineHeight:2}}>No {isWine?"wines":"beers"} yet.<br/><span style={{fontSize:13,opacity:0.5}}>Tap + Add to get started.</span></div>}
-            {!isWine&&beerGroups.map(pack=>(
-              <div key={pack}>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:T.sectionColor,margin:"18px 0 8px",opacity:0.8}}>{pack}</div>
-                {filtered.filter(b=>b.packSize===pack).map(item=>(
-                  <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-                    <ItemCard item={item} T={T} isWine={false} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
-                  </SwipeRow>
-                ))}
-              </div>
-            ))}
-            {isWine&&sortBy==="type"&&wineGroups&&wineGroups.map(type=>(
-              <div key={type}>
-                <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:T.sectionColor,margin:"18px 0 8px",opacity:0.8}}>{type}</div>
-                {filtered.filter(b=>(b.wineType||"Other")===type).map(item=>(
-                  <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-                    <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
-                  </SwipeRow>
-                ))}
-              </div>
-            ))}
-            {isWine&&sortBy!=="type"&&filtered.map(item=>(
-              <SwipeRow key={item.id} onSwipeLeft={()=>openEdit(item)}>
-                <ItemCard item={item} T={T} isWine={true} onEdit={()=>openEdit(item)} onDelete={()=>requireManager(()=>setConfirmDelete({id:item.id,name:item.name}))} onToggleStock={()=>toggleOutOfStock(item.id)}/>
-              </SwipeRow>
-            ))}
-          </div>
-        )}
-
-        {/* ADD / EDIT FORM */}
-        {(view==="add"||view==="edit")&&(
-          <div style={{padding:"14px 14px 20px"}}>
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:14,padding:20}}>
-              <div style={{fontSize:18,fontWeight:700,marginBottom:4,color:T.accent}}>{view==="edit"?`✏️  Edit ${isWine?"Wine":"Beer"}`:`➕  New ${isWine?"Wine":"Beer"}`}</div>
-              <div style={{fontSize:12,color:T.subText,marginBottom:16}}>{isWine?"Wine section — no deposit":"Beer section"}</div>
-              <label style={lbl(T)}>{isWine?"Wine":"Beer"} Name</label>
-              <input style={inp(T)} placeholder={isWine?"e.g. Woodbridge Cabernet":"e.g. Bud Light"} value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))}/>
-              {isWine&&<>
-                <label style={lbl(T)}>Wine Type</label>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                  {WINE_TYPES.map(t=><button key={t} onClick={()=>setForm(f=>({...f,wineType:t}))} style={{background:form.wineType===t?T.accent:T.inputBg,border:`1px solid ${form.wineType===t?T.accent:T.inputBorder}`,borderRadius:8,padding:"8px 12px",color:form.wineType===t?T.accentText:T.subText,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:form.wineType===t?700:400}}>{t}</button>)}
-                </div>
-              </>}
-              {!isWine&&<>
-                <label style={lbl(T)}>Pack Size</label>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                  {PACK_SIZES.map(p=><button key={p} onClick={()=>setForm(f=>({...f,packSize:p}))} style={{background:form.packSize===p?T.accent:T.inputBg,border:`1px solid ${form.packSize===p?T.accent:T.inputBorder}`,borderRadius:8,padding:"8px 12px",color:form.packSize===p?T.accentText:T.subText,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:form.packSize===p?700:400}}>{p}</button>)}
-                </div>
-                <label style={lbl(T)}>Container</label>
-                <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
-                  {CONTAINER_TYPES.map(c=><button key={c} onClick={()=>setForm(f=>({...f,containerType:c}))} style={{background:form.containerType===c?T.accent:T.inputBg,border:`1px solid ${form.containerType===c?T.accent:T.inputBorder}`,borderRadius:8,padding:"8px 12px",color:form.containerType===c?T.accentText:T.subText,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:form.containerType===c?700:400}}>{c==="Can"?"🥫 Can":"🍶 Bottle"}</button>)}
-                </div>
-              </>}
-              <label style={lbl(T)}>Price ($)</label>
-              <input style={inp(T)} type="number" min="0" step="0.01" placeholder="0.00" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))}/>
-              {!isWine&&<>
-                <label style={lbl(T)}>Deposit Charge ($) <span style={{opacity:0.5,fontWeight:400}}>— optional</span></label>
-                <input style={inp(T)} type="number" min="0" step="0.01" placeholder="0.00" value={form.deposit} onChange={e=>setForm(f=>({...f,deposit:e.target.value}))}/>
-              </>}
-              <label style={lbl(T)}>Location <span style={{opacity:0.5,fontWeight:400}}>— optional</span></label>
-              <input style={inp(T)} placeholder="e.g. Back cooler, top shelf" value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))}/>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:20,padding:"12px 14px",background:T.inputBg,border:`1px solid ${T.inputBorder}`,borderRadius:10}}>
-                <span style={{fontSize:14,color:T.text}}>Mark as out of stock</span>
-                <button onClick={()=>setForm(f=>({...f,outOfStock:!f.outOfStock}))} style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.outOfStock?"#e74c3c":T.badgeBg,position:"relative",transition:"background 0.2s"}}>
-                  <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.outOfStock?25:3,transition:"left 0.2s"}}/>
-                </button>
-              </div>
-              <div style={{marginTop:20}}>
-                <button onClick={handleSave} disabled={syncing} style={{width:"100%",background:T.accent,border:"none",borderRadius:10,padding:13,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:syncing?0.7:1}}>
-                  {syncing?"Saving…":view==="edit"?"Save Changes":`Add ${isWine?"Wine":"Beer"}`}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </>}
-
-      {/* ══════════════════════════════════════════════
-          BUGS PAGE
-      ══════════════════════════════════════════════ */}
-      {page==="bugs"&&(
-        <div style={{padding:"20px 14px 20px"}}>
-          <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>🐛 Known Bugs</div>
-          <div style={{fontSize:12,color:T.subText,marginBottom:20}}>Issues the team is already aware of</div>
-          {bugsLoading&&<div style={{textAlign:"center",color:T.subText,padding:"40px 0"}}>Loading…</div>}
-          {!bugsLoading&&knownBugs.length===0&&(
-            <div style={{textAlign:"center",color:T.subText,padding:"30px 20px",background:T.cardBg,borderRadius:12,border:`1px solid ${T.cardBorder}`,marginBottom:24}}>
-              <div style={{fontSize:32,marginBottom:8}}>✅</div>
-              <div style={{fontSize:15,fontWeight:600,marginBottom:4}}>No known bugs!</div>
-              <div style={{fontSize:13,opacity:0.7}}>Found something? Report it below.</div>
-            </div>
-          )}
-          {!bugsLoading&&knownBugs.map(bug=>(
-            <BugCard key={bug.id} bug={bug} T={T} isDev={false} onDelete={()=>{}}/>
-          ))}
-
-          <div style={{height:1,background:T.cardBorder,margin:"24px 0"}}/>
-          <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>📝 Report a Bug</div>
-          <div style={{fontSize:12,color:T.subText,marginBottom:16}}>Managers can submit bugs they find. Requires manager PIN.</div>
-          {!showReportForm?(
-            <button onClick={()=>requireManager(()=>setShowReportForm(true))} style={{width:"100%",padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
-              + Submit a Bug Report
-            </button>
-          ):(
-            <div style={{background:T.formCardBg,border:`1px solid ${T.formCardBorder}`,borderRadius:14,padding:20}}>
-              <label style={lbl(T)}>Bug Title</label>
-              <input style={inp(T)} placeholder="Short description of the bug" value={reportForm.title} onChange={e=>setReportForm(f=>({...f,title:e.target.value}))}/>
-              <label style={lbl(T)}>Description</label>
-              <textarea style={{...inp(T),minHeight:100,resize:"none",lineHeight:1.5}} placeholder="What happened? How do you reproduce it?" value={reportForm.description} onChange={e=>setReportForm(f=>({...f,description:e.target.value}))}/>
-              <label style={lbl(T)}>Severity</label>
-              <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
-                {SEVERITY_LEVELS.map(s=>{
-                  const c={Low:"#27ae60",Medium:"#f0c040",High:"#e67e22",Critical:"#e74c3c"}[s];
-                  return <button key={s} onClick={()=>setReportForm(f=>({...f,severity:s}))} style={{padding:"8px 14px",borderRadius:8,border:`1px solid ${reportForm.severity===s?c:T.inputBorder}`,background:reportForm.severity===s?`${c}22`:"transparent",color:reportForm.severity===s?c:T.subText,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:reportForm.severity===s?700:400}}>{s}</button>;
-                })}
-              </div>
-              <div style={{display:"flex",gap:10,marginTop:20}}>
-                <button onClick={()=>setShowReportForm(false)} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.inputBorder}`,borderRadius:10,color:T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-                <button onClick={submitBugReport} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit Report</button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* ══════════════════════════════════════════════
-          DEV PAGE
-      ══════════════════════════════════════════════ */}
-      {page==="dev"&&(
-        <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",paddingBottom:80}}>
-          {/* dev header */}
-          <div style={{background:DT.headerBg,borderBottom:`1px solid ${DT.cardBorder}`,padding:"16px 16px 14px"}}>
-            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
-              <div>
-                <div style={{fontSize:11,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:3}}>// developer console</div>
-                <div style={{fontSize:20,fontWeight:700,color:DT.accent,letterSpacing:"0.05em"}}>DEV MODE</div>
-              </div>
-              {isDev&&(
-                <button onClick={logout} style={{padding:"7px 14px",background:"transparent",border:`1px solid ${DT.red}44`,borderRadius:6,color:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.05em"}}>
-                  LOCK_SESSION
-                </button>
-              )}
-            </div>
-            {isDev&&(
-              <div style={{marginTop:10,display:"flex",gap:6,flexWrap:"wrap"}}>
-                <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.green}15`,color:DT.green,border:`1px solid ${DT.green}30`,letterSpacing:"0.08em"}}>● SESSION ACTIVE</span>
-                <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`,letterSpacing:"0.08em"}}>● FULL ACCESS</span>
-              </div>
-            )}
-          </div>
-
-          {!isDev?(
-            <div style={{textAlign:"center",padding:"80px 20px"}}>
-              <div style={{fontSize:14,color:DT.subText,letterSpacing:"0.1em",marginBottom:12}}>// AUTHENTICATION REQUIRED</div>
-              <div style={{fontFamily:"'Courier New',monospace",fontSize:28,fontWeight:700,color:DT.accent,marginBottom:8,letterSpacing:"0.05em"}}>ACCESS_DENIED</div>
-              <div style={{fontSize:12,color:DT.mutedText,marginBottom:32,letterSpacing:"0.05em"}}>Enter developer credentials to proceed</div>
-              <button onClick={()=>requireDev(()=>{})} style={{padding:"13px 32px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.1em"}}>
-                ENTER_PIN →
-              </button>
-            </div>
-          ):(
-            <div style={{padding:"20px 14px"}}>
-
-              {/* ── MANAGER PIN SECTION ── */}
-              <div style={{marginBottom:24}}>
-                <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// security.managerPin</div>
-                <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#ff446644":DT.cardBorder}`,borderRadius:10,padding:16,transition:"border-color 0.3s"}}>
-                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
-                    <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Manager PIN</div>
-                    <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?"#ff446615":`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?"#ff446644":DT.green+"44"}`,borderRadius:4,letterSpacing:"0.06em",transition:"all 0.3s"}}>
-                      {managerDisabled?"DISABLED":"ACTIVE"}
-                    </span>
+                  <div style={{display:"flex",alignItems:"center",gap:6}}>
+                    <span style={{fontSize:10,color:T.sub,letterSpacing:"0.04em"}}>{mapMini?"Show Map":"Hide Map"}</span>
+                    <span style={{fontSize:11,color:T.sub,transform:mapMini?"rotate(0deg)":"rotate(180deg)",transition:"transform 0.25s ease",display:"inline-block"}}>▾</span>
                   </div>
-                  <div style={{fontSize:12,color:DT.subText,marginBottom:12}}>Current PIN: <span style={{color:DT.accent,letterSpacing:"0.2em"}}>{"•".repeat(currentManagerPin.length)}</span> ({currentManagerPin.length} digits)</div>
-
-                  {managerDisabled&&(
-                    <div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>
-                      // WARNING: Manager permissions currently DISABLED
-                    </div>
-                  )}
-
-                  {!showChangePinForm&&(
-                    <button onClick={toggleManagerDisabled} style={{width:"100%",marginBottom:10,padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",transition:"all 0.3s"}}>
-                      {managerDisabled?"✓ ENABLE_MANAGERS →":"⊘ DISABLE_MANAGERS →"}
-                    </button>
-                  )}
-
-                  {!showChangePinForm?(
-                    <button onClick={()=>setShowChangePinForm(true)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>
-                      CHANGE_PIN →
-                    </button>
-                  ):(
-                    <div>
-                      <div style={{fontSize:11,color:DT.subText,letterSpacing:"0.1em",marginBottom:10}}>// Enter new 4-digit PIN</div>
-                      <input type="password" inputMode="numeric" maxLength={4} placeholder="New PIN (4 digits)"
-                        value={changePinForm.newPin} onChange={e=>setChangePinForm(f=>({...f,newPin:e.target.value.replace(/\D/g,"")}))}
-                        style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"10px 12px",color:DT.text,fontSize:18,fontFamily:"'Courier New',monospace",boxSizing:"border-box",letterSpacing:"0.3em",marginBottom:8,textAlign:"center"}}/>
-                      <input type="password" inputMode="numeric" maxLength={4} placeholder="Confirm PIN"
-                        value={changePinForm.confirmPin} onChange={e=>setChangePinForm(f=>({...f,confirmPin:e.target.value.replace(/\D/g,"")}))}
-                        style={{width:"100%",background:DT.inputBg,border:`1px solid ${changePinForm.confirmPin&&changePinForm.confirmPin!==changePinForm.newPin?"#ff446644":DT.inputBorder}`,borderRadius:6,padding:"10px 12px",color:DT.text,fontSize:18,fontFamily:"'Courier New',monospace",boxSizing:"border-box",letterSpacing:"0.3em",marginBottom:4,textAlign:"center"}}/>
-                      {changePinForm.confirmPin&&changePinForm.confirmPin!==changePinForm.newPin&&(
-                        <div style={{fontSize:11,color:DT.red,marginBottom:8,letterSpacing:"0.05em"}}>// ERR: PINs do not match</div>
-                      )}
-                      {changePinForm.newPin.length===4&&changePinForm.newPin===changePinForm.confirmPin&&(
-                        <div style={{fontSize:11,color:DT.green,marginBottom:8,letterSpacing:"0.05em"}}>// OK: PINs match — ready to save</div>
-                      )}
-                      <div style={{display:"flex",gap:8,marginTop:10}}>
-                        <button onClick={()=>{setShowChangePinForm(false);setChangePinForm({newPin:"",confirmPin:""});}} style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>CANCEL</button>
-                        <button onClick={changeManagerPin} style={{flex:2,padding:"9px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>CONFIRM_CHANGE →</button>
+                </button>
+                <div style={{display:"grid",gridTemplateRows:mapMini?"0fr":"1fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
+                  <div style={{overflow:"hidden"}}>
+                    <div style={{paddingTop:6}}>
+                      <FloorPlan pinZone={item.mapZone} accent={T.accent} readonly={true}/>
+                      <div style={{display:"flex",justifyContent:"flex-end",marginTop:5}}>
+                        <button onClick={e=>{e.stopPropagation();setMapExpanded(true);}} style={{fontSize:10,color:T.accent,background:"transparent",border:`1px solid ${T.accent}44`,borderRadius:5,padding:"2px 8px",cursor:"pointer",fontFamily:"inherit",fontWeight:600,letterSpacing:"0.04em"}}>⤢ Full Screen</button>
                       </div>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
+            )}
+            <button onClick={onToggle} style={{width:"100%",marginBottom:8,padding:"9px",background:oos?"#2e1a1a":"transparent",border:`1px solid ${oos?"#5a2a2a":T.border}`,borderRadius:8,color:oos?"#e07070":T.sub,fontSize:13,cursor:"pointer",fontFamily:"inherit",transition:"background 0.2s"}}>
+              {oos?"✅ Mark In Stock":"🚫 Mark Out of Stock"}
+            </button>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={e=>{e.stopPropagation();onEdit(item);}} style={{flex:1,padding:"9px",background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,color:T.badgeText,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>✏️ Edit</button>
+              <button onClick={onDelete} style={{flex:1,padding:"9px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    </>
+  );
+}
 
-              {/* ── KNOWN BUGS ── */}
-              <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.known [{knownBugs.length}]</div>
-              {!showAddBugForm?(
-                <button onClick={()=>setShowAddBugForm(true)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em",marginBottom:14}}>
-                  + ADD_KNOWN_BUG →
-                </button>
-              ):(
-                <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:14}}>
-                  <div style={{fontSize:11,color:DT.subText,letterSpacing:"0.1em",marginBottom:12}}>// bugs.known.add()</div>
-                  <input style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"10px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}} placeholder="Bug title" value={newBugForm.title} onChange={e=>setNewBugForm(f=>({...f,title:e.target.value}))}/>
-                  <textarea style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"10px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:80,resize:"none",lineHeight:1.5}} placeholder="Description" value={newBugForm.description} onChange={e=>setNewBugForm(f=>({...f,description:e.target.value}))}/>
-                  <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",margin:"10px 0 6px"}}>// severity</div>
-                  <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:10}}>
-                    {SEVERITY_LEVELS.map(s=>{
-                      const c={Low:"#00ff88",Medium:"#f0c040",High:"#e67e22",Critical:"#ff4466"}[s];
-                      return <button key={s} onClick={()=>setNewBugForm(f=>({...f,severity:s}))} style={{padding:"6px 12px",borderRadius:4,border:`1px solid ${newBugForm.severity===s?c:DT.cardBorder}`,background:newBugForm.severity===s?`${c}20`:"transparent",color:newBugForm.severity===s?c:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.05em"}}>{s.toUpperCase()}</button>;
-                    })}
-                  </div>
-                  <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.1em",margin:"0 0 6px"}}>// status</div>
-                  <div style={{display:"flex",gap:6,marginBottom:14}}>
-                    {["Open","In Progress","Fixed"].map(s=>(
-                      <button key={s} onClick={()=>setNewBugForm(f=>({...f,status:s}))} style={{padding:"6px 12px",borderRadius:4,border:`1px solid ${newBugForm.status===s?DT.accent:DT.cardBorder}`,background:newBugForm.status===s?DT.accentDim:"transparent",color:newBugForm.status===s?DT.accent:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.05em"}}>{s.toUpperCase().replace(" ","_")}</button>
-                    ))}
-                  </div>
-                  <div style={{display:"flex",gap:8}}>
-                    <button onClick={()=>setShowAddBugForm(false)} style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.05em"}}>CANCEL</button>
-                    <button onClick={addKnownBug} style={{flex:2,padding:"9px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>PUSH_BUG →</button>
-                  </div>
+// ── BugCard ───────────────────────────────────────────────────────────────────
+function BugCard({bug,T,canDelete,onDelete}){
+  const [expanded,setExpanded]=useState(false);
+  const [pressed,setPressed]=useState(false);
+  const sColor={Low:"#27ae60",Medium:"#f0c040",High:"#e67e22",Critical:"#e74c3c"}[bug.severity]||"#9ba8c0";
+  return(
+    <div
+      onClick={()=>setExpanded(e=>!e)}
+      onMouseDown={()=>setPressed(true)} onMouseUp={()=>setPressed(false)} onMouseLeave={()=>setPressed(false)}
+      onTouchStart={()=>setPressed(true)} onTouchEnd={()=>setPressed(false)}
+      style={{background:T.card||DT.cardBg,border:`1px solid ${T.border||DT.cardBorder}`,borderRadius:12,padding:14,marginBottom:10,cursor:"pointer",transform:pressed?"scale(0.985)":"scale(1)",transition:"transform 0.12s ease"}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{flex:1}}>
+          <div style={{fontSize:14,fontWeight:600,color:T.text||DT.text,marginBottom:4}}>{bug.title}</div>
+          <span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:6,background:`${sColor}22`,color:sColor,border:`1px solid ${sColor}44`}}>{bug.severity}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <div style={{fontSize:11,color:T.sub||DT.subText}}>{bug.status}</div>
+          <div style={{fontSize:12,color:T.sub||DT.subText,transform:expanded?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.25s ease"}}>▾</div>
+        </div>
+      </div>
+      <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
+        <div style={{overflow:"hidden"}}>
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border||DT.cardBorder}`}} onClick={e=>e.stopPropagation()}>
+            <p style={{fontSize:13,color:T.text||DT.text,lineHeight:1.6,marginBottom:8}}>{bug.description}</p>
+            {bug.created_at&&<div style={{fontSize:11,color:T.sub||DT.subText,marginBottom:canDelete?10:0}}>Reported: {bug.created_at}</div>}
+            {canDelete&&<button onClick={onDelete} style={{width:"100%",padding:"9px",background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:8,color:"#e07070",fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ManagerButton ─────────────────────────────────────────────────────────────
+function ManagerButton({isManager,isDev,isDark,onSignIn,onSignOut}){
+  const [displayLabel,setDisplayLabel]=useState(isDev?"Developer":isManager?"Manager":"sign-out");
+  const [textOpacity,setTextOpacity]=useState(1);
+
+  const activeLabel = isDev?"Developer":isManager?"Manager":"sign-out";
+
+  useEffect(()=>{
+    setTextOpacity(0);
+    const swap=setTimeout(()=>setDisplayLabel(activeLabel),180);
+    const fadein=setTimeout(()=>setTextOpacity(1),200);
+    return()=>{clearTimeout(swap);clearTimeout(fadein);};
+  },[activeLabel]);
+
+  const signedIn = isManager||isDev;
+  const bg = isDev
+    ? "linear-gradient(135deg,#00c4ef,#0090bb)"
+    : isManager
+    ? "linear-gradient(135deg,#f0c040,#e0a020)"
+    : isDark?"#1a1f2e":"#e0e0d0";
+  const shadow = isDev
+    ? "0 2px 12px #00d4ff55"
+    : isManager
+    ? "0 2px 12px #f0c04055"
+    : "none";
+  const textColor = signedIn ? "#0a0e1a" : isDark?"#6b7280":"#909080";
+  const minW = displayLabel==="sign-out"?140:displayLabel==="Developer"?114:92;
+
+  return(
+    <button
+      onClick={signedIn?onSignOut:onSignIn}
+      style={{
+        display:"flex",alignItems:"center",gap:7,
+        padding:"7px 13px",
+        background:bg,
+        border:signedIn?"none":isDark?"1px solid #2a3050":"1px solid #c8c8b8",
+        borderRadius:20,cursor:"pointer",fontFamily:"inherit",
+        boxShadow:shadow,color:textColor,
+        transition:"background 0.35s ease, box-shadow 0.35s ease, border-color 0.35s ease, min-width 0.35s ease",
+        minWidth:minW,flexShrink:0,
+      }}>
+      <LockIcon unlocked={signedIn} size={16}/>
+      <span style={{fontSize:11,fontWeight:700,letterSpacing:"0.04em",whiteSpace:"nowrap",opacity:textOpacity,transition:"opacity 0.18s ease",fontFamily:isDev?"'Courier New',monospace":"inherit"}}>
+        {displayLabel==="sign-out"?"Manager Sign in":displayLabel}
+      </span>
+    </button>
+  );
+}
+
+// ── HomeGrid ──────────────────────────────────────────────────────────────────
+function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef}){
+  const [search,setSearch]=useState("");
+  const [searchResults,setSearchResults]=useState([]);
+  const [showExport,setShowExport]=useState(false);
+  const [showDataModal,setShowDataModal]=useState(false);
+  const [showPasteModal,setShowPasteModal]=useState(false);
+  const [pasteText,setPasteText]=useState("");
+  const [showWelcome,setShowWelcome]=useState(false);
+  const fileInputRef=useRef(null);
+
+  useEffect(()=>{
+    if(isDev&&!hasShownWelcomeRef.current.dev){
+      hasShownWelcomeRef.current.dev=true;
+      const t=setTimeout(()=>{
+        setShowWelcome("dev");
+        setTimeout(()=>setShowWelcome(false),3000);
+      },600);
+      return()=>clearTimeout(t);
+    }
+  },[isDev]);
+
+  useEffect(()=>{
+    if(isManager&&!isDev&&!hasShownWelcomeRef.current.manager){
+      hasShownWelcomeRef.current.manager=true;
+      const t=setTimeout(()=>{
+        setShowWelcome("manager");
+        setTimeout(()=>setShowWelcome(false),3000);
+      },600);
+      return()=>clearTimeout(t);
+    }
+  },[isManager,isDev]);
+
+  function handleSearch(val){
+    setSearch(val);
+    if(!val.trim()){setSearchResults([]);return;}
+    setSearchResults(items.filter(i=>i.name.toLowerCase().includes(val.toLowerCase())).slice(0,10));
+  }
+  function downloadCSV(){
+    const csv=buildCSV(items);
+    const blob=new Blob([csv],{type:"text/csv"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");a.href=url;a.download="all-pricing.csv";a.click();
+    URL.revokeObjectURL(url);setShowExport(false);
+  }
+  function handleImport(e){
+    const file=e.target.files[0];if(!file)return;
+    const reader=new FileReader();
+    reader.onload=ev=>{try{alert(`Import preview: ${ev.target.result.split("\n").length-1} rows found. (Full import wired in real app.)`);} catch{}};
+    reader.readAsText(file);e.target.value="";setShowExport(false);
+  }
+
+  return(
+    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease"}}>
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        .cat-card{transition:transform 0.18s ease,box-shadow 0.18s ease;}
+        .cat-card:active{transform:scale(0.96)!important;}
+        .cat-card:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,0.35);}
+        .search-result-row{transition:background 0.15s ease;}
+        .search-result-row:hover{background:rgba(255,255,255,0.06);}
+        .icon-btn{transition:transform 0.15s ease,opacity 0.15s ease;}
+        .icon-btn:hover{transform:scale(1.08);}
+        .icon-btn:active{transform:scale(0.94);}
+        .export-item{transition:background 0.12s ease;}
+        .export-item:hover{background:rgba(255,255,255,0.07)!important;}
+        @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes devWelcome{
+          0%  {transform:translateX(120%);opacity:0;}
+          10% {transform:translateX(0%);opacity:1;}
+          75% {transform:translateX(0%);opacity:1;}
+          100%{transform:translateX(-120%);opacity:0;}
+        }
+      `}</style>
+
+      {/* Header */}
+      <div style={{padding:"24px 16px 16px",background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:isDark?"1px solid #141c2c":"1px solid #d8d8c8"}}>
+        <div style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:2}}>
+          <div style={{fontSize:26,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a"}}>Price Manager</div>
+          <div style={{display:"flex",gap:8,alignItems:"center"}}>
+            {/* Theme toggle */}
+            <button onClick={onToggleTheme} className="icon-btn" style={{background:isDark?"#1a1f2e":"#e0e0d0",border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",borderRadius:8,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",position:"relative"}}>
+              <span style={{position:"absolute",fontSize:16,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(1) rotate(0deg)":"scale(0) rotate(180deg)",opacity:isDark?1:0}}>☀️</span>
+              <span style={{position:"absolute",fontSize:16,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(0) rotate(-180deg)":"scale(1) rotate(0deg)",opacity:isDark?0:1}}>🌙</span>
+            </button>
+            {/* Import/export */}
+            <div style={{position:"relative"}}>
+              <button onClick={()=>setShowExport(v=>!v)} className="icon-btn" style={{background:isDark?"#1a1f2e":"#e0e0d0",border:isDark?"1px solid #2a3050":"1px solid #c8c8b8",borderRadius:8,width:34,height:34,fontSize:16,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>⇅</button>
+              {showExport&&(
+                <div style={{position:"absolute",right:0,top:40,background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:12,padding:6,zIndex:300,minWidth:200,boxShadow:"0 6px 24px rgba(0,0,0,0.35)",animation:"slideDown 0.18s ease"}}>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:isDark?"#4a5568":"#909080",padding:"6px 12px 4px"}}>Export</div>
+                  <button onClick={downloadCSV} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📥 Download All CSV</button>
+                  <div style={{height:1,background:isDark?"#2a3050":"#e0e0d0",margin:"4px 0"}}/>
+                  <div style={{fontSize:10,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",color:isDark?"#4a5568":"#909080",padding:"4px 12px"}}>Import</div>
+                  <button onClick={()=>fileInputRef.current?.click()} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📂 Import from CSV</button>
+                  <button onClick={()=>{setShowPasteModal(true);setShowExport(false);}} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📋 Paste Data</button>
+                  <div style={{height:1,background:isDark?"#2a3050":"#e0e0d0",margin:"4px 0"}}/>
+                  <button onClick={()=>{setShowDataModal(true);setShowExport(false);}} className="export-item" style={{display:"flex",alignItems:"center",gap:8,width:"100%",padding:"9px 12px",background:"none",border:"none",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",cursor:"pointer",borderRadius:8}}>📤 Show my data</button>
                 </div>
               )}
-              {bugsLoading&&<div style={{textAlign:"center",color:DT.subText,padding:"20px 0",fontSize:12,letterSpacing:"0.1em"}}>// loading...</div>}
-              {!bugsLoading&&knownBugs.length===0&&<div style={{fontSize:12,color:DT.mutedText,padding:"12px 0 20px",letterSpacing:"0.08em"}}>// array empty — no known bugs</div>}
-              {knownBugs.map(bug=>(
-                <BugCard key={bug.id} bug={bug} T={{...DT,accent:DT.accent,cardBg:DT.cardBg,cardBorder:DT.cardBorder,text:DT.text,subText:DT.subText,badgeBg:DT.badgeBg,badgeBorder:DT.badgeBorder,badgeText:DT.badgeText}} isDev={true} onDelete={()=>deleteKnownBug(bug.id)}/>
-              ))}
-
-              <div style={{height:1,background:DT.cardBorder,margin:"24px 0"}}/>
-
-              {/* ── BUG REPORTS ── */}
-              <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.reports [{bugReports.length}]</div>
-              {!bugsLoading&&bugReports.length===0&&<div style={{fontSize:12,color:DT.mutedText,padding:"12px 0",letterSpacing:"0.08em"}}>// array empty — no reports submitted</div>}
-              {bugReports.map(bug=>(
-                <BugCard key={bug.id} bug={bug} T={{...DT,accent:DT.accent,cardBg:DT.cardBg,cardBorder:DT.cardBorder,text:DT.text,subText:DT.subText,badgeBg:DT.badgeBg,badgeBorder:DT.badgeBorder,badgeText:DT.badgeText}} isDev={true} onDelete={()=>deleteBugReport(bug.id)}/>
-              ))}
+              <input ref={fileInputRef} type="file" accept=".csv" style={{display:"none"}} onChange={handleImport}/>
             </div>
-          )}
+            {/* Manager sign in/out — smooth both ways */}
+            <ManagerButton isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={onSignIn} onSignOut={onSignOut}/>
+          </div>
         </div>
-      )}
+        <div style={{fontSize:12,color:isDark?"#3a4a60":"#909080",height:18,overflow:"hidden",position:"relative"}}>
+          <span style={{position:"absolute",left:0,top:0,transition:"opacity 0.3s ease",opacity:showWelcome?0:1}}>
+            {items.length} items · {CATEGORIES.length} categories
+          </span>
+          <span style={{
+            position:"absolute",left:0,top:0,
+            color:showWelcome==="dev"?DT.accent:"#f0c040",
+            fontWeight:600,letterSpacing:"0.04em",
+            whiteSpace:"nowrap",
+            fontFamily:showWelcome==="dev"?"'Courier New',monospace":"'Georgia','Times New Roman',serif",
+            animation:showWelcome?"devWelcome 2.8s cubic-bezier(0.25,0.1,0.25,1) forwards":"none",
+            opacity:showWelcome?1:0,
+          }}>
+            {showWelcome==="dev"?"Welcome back, Developer.":"Welcome back, Manager."}
+          </span>
+        </div>
+      </div>
 
-      {/* ── BOTTOM NAV ── */}
-      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:page==="dev"?DT.appBg:T.navBg,borderTop:`1px solid ${page==="dev"?DT.cardBorder:T.navBorder}`,display:"flex",zIndex:150}}>
-        {[
-          {id:"pricing",label:"Pricing",icon:"🏷️"},
-          {id:"bugs",label:"Bugs",icon:"🐛"},
-          {id:"dev",label:"Dev",icon:"👨‍💻"},
-        ].map(tab=>{
-          const isActive=page===tab.id;
-          const accentColor=tab.id==="dev"?DT.accent:T.accent;
-          const textColor=isActive?(tab.id==="dev"?DT.accent:T.accent):(tab.id==="dev"?DT.subText:T.subText);
-          return (
-            <button key={tab.id} onClick={()=>{setPage(tab.id);if(tab.id==="pricing")setView("list");}} style={{flex:1,padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",fontFamily:tab.id==="dev"?"'Courier New',monospace":"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:isActive?1:0.45,transition:"opacity 0.2s"}}>
-              <span style={{fontSize:20}}>{tab.icon}</span>
-              <span style={{fontSize:10,fontWeight:700,letterSpacing:tab.id==="dev"?"0.08em":"0.04em",color:textColor,textTransform:"uppercase"}}>{tab.id==="dev"?"[DEV]":tab.label}</span>
-              {isActive&&<div style={{width:20,height:2,borderRadius:2,background:accentColor,marginTop:1}}/>}
-            </button>
+      {/* Search */}
+      <div style={{padding:"14px 16px"}}>
+        <input value={search} onChange={e=>handleSearch(e.target.value)} placeholder="🔍  Search all items across categories..."
+          style={{width:"100%",background:isDark?"#0f1525":"#ffffff",border:isDark?"1px solid #1e2a40":"1px solid #d0d0c0",borderRadius:12,padding:"12px 16px",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"}}/>
+        {searchResults.length>0&&(
+          <div style={{background:isDark?"#0f1525":"#fff",border:isDark?"1px solid #1e2a40":"1px solid #d0d0c0",borderRadius:10,marginTop:6,overflow:"hidden",animation:"slideDown 0.2s ease"}}>
+            {searchResults.map((item,idx)=>{
+              const cat=CATEGORIES.find(c=>c.key===item.category);
+              return(
+                <div key={item.id} className="search-result-row" onClick={()=>{onSelectCategory(cat, item.id);setSearch("");setSearchResults([]);}}
+                  style={{padding:"10px 14px",borderBottom:isDark?"1px solid #141c2c":"1px solid #e8e8d8",display:"flex",justifyContent:"space-between",alignItems:"center",animation:`fadeIn 0.15s ease ${idx*0.04}s both`,cursor:"pointer"}}>
+                  <div>
+                    <div style={{fontSize:13,fontWeight:600,color:isDark?"#f0f0f0":"#1a1a1a"}}>{item.name}</div>
+                    <div style={{fontSize:11,color:isDark?"#3a4a60":"#909080"}}>{cat?.icon} {cat?.name}</div>
+                  </div>
+                  <div style={{fontSize:15,fontWeight:700,color:cat?.theme.accent||"#f0c040"}}>${item.price.toFixed(2)}</div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Category grid */}
+      <div style={{padding:"0 16px 16px",display:"grid",gridTemplateColumns:"1fr 1fr",gap:12}} onClick={()=>setShowExport(false)}>
+        {CATEGORIES.map((cat,idx)=>{
+          const count=items.filter(i=>i.category===cat.key).length;
+          const oos=items.filter(i=>i.category===cat.key&&i.outOfStock).length;
+          return(
+            <div key={cat.key} onClick={()=>onSelectCategory(cat)} className="cat-card"
+              style={{background:`linear-gradient(135deg,${cat.theme.card} 0%,${cat.theme.bg} 100%)`,border:`1px solid ${cat.theme.border}`,borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${idx*0.07}s both`}}>
+              <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:cat.theme.accent,borderRadius:"16px 16px 0 0",opacity:0.9}}/>
+              <div style={{fontSize:26,marginBottom:8,animation:`fadeUp 0.35s ease ${idx*0.07+0.1}s both`}}>{cat.icon}</div>
+              <div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:2}}>{cat.name}</div>
+              <div style={{fontSize:11,color:cat.theme.sub}}>{count} item{count!==1?"s":""}{oos>0&&<span style={{color:"#e74c3c"}}> · {oos} out</span>}</div>
+              <div style={{position:"absolute",bottom:-16,right:-16,width:50,height:50,borderRadius:"50%",background:cat.theme.accent,opacity:0.08,transition:"transform 0.3s ease",}}/>
+            </div>
           );
         })}
       </div>
 
+      {/* Data modal */}
+      {showDataModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.2s ease"}}>
+          <div style={{background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column",animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:10}}>📋 Your Data</div>
+            <textarea readOnly value={JSON.stringify(items,null,2)} style={{flex:1,minHeight:200,background:isDark?"#0f1117":"#f8f8f0",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,padding:12,color:isDark?"#f0f0f0":"#1a1a1a",fontSize:11,fontFamily:"monospace",resize:"none"}} onFocus={e=>e.target.select()}/>
+            <div style={{display:"flex",gap:10,marginTop:12}}>
+              <button onClick={()=>setShowDataModal(false)} style={{flex:1,padding:11,background:"transparent",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,color:isDark?"#6b7280":"#909080",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Close</button>
+              <button onClick={()=>navigator.clipboard.writeText(JSON.stringify(items)).catch(()=>{})} style={{flex:2,padding:11,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Copy</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {showPasteModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"fadeIn 0.2s ease"}}>
+          <div style={{background:isDark?"#1a1f2e":"#fff",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:16,padding:22,width:"100%",maxWidth:400,maxHeight:"80vh",display:"flex",flexDirection:"column",animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:10}}>📋 Paste Data</div>
+            <textarea value={pasteText} onChange={e=>setPasteText(e.target.value)} placeholder="Paste JSON data here..." style={{flex:1,minHeight:200,background:isDark?"#0f1117":"#f8f8f0",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,padding:12,color:isDark?"#f0f0f0":"#1a1a1a",fontSize:11,fontFamily:"monospace",resize:"none"}}/>
+            <div style={{display:"flex",gap:10,marginTop:12}}>
+              <button onClick={()=>{setShowPasteModal(false);setPasteText("");}} style={{flex:1,padding:11,background:"transparent",border:isDark?"1px solid #2a3050":"1px solid #d0d0c0",borderRadius:10,color:isDark?"#6b7280":"#909080",fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={()=>{try{const p=JSON.parse(pasteText);if(Array.isArray(p)){setItems(p);setShowPasteModal(false);setPasteText("");}}catch{alert("Invalid JSON");}}} style={{flex:2,padding:11,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Import</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CategoryPage ──────────────────────────────────────────────────────────────
+function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireManager,isDark,onToggleTheme,onAuditLog,scrollToItem}){
+  const baseT=category.theme;
+  const T=buildThemeVariant(baseT,isDark?"dark":"light");
+  const isAlcohol=category.key==="beverages_alcoholic";
+
+  const [activeSub,setActiveSub]=useState(null);
+  const [search,setSearch]=useState("");
+  const [filterPack,setFilterPack]=useState("All");
+  const [filterContainer,setFilterContainer]=useState("All");
+  const [sortBy,setSortBy]=useState("name");
+  const [showForm,setShowForm]=useState(false);
+  const [editItem,setEditItem]=useState(null);
+  const [syncing,setSyncing]=useState(false);
+  const [confirmDelete,setConfirmDelete]=useState(null);
+  const [massSelectMode,setMassSelectMode]=useState(false);
+  const [selected,setSelected]=useState(new Set());
+  const [mapOpen,setMapOpen]=useState(false);
+  const [highlightedItem,setHighlightedItem]=useState(scrollToItem||null);
+  const itemRefs=useRef({});
+
+  // Scroll to and open item when arriving from search
+  useEffect(()=>{
+    if(!scrollToItem)return;
+    // Small delay to let items render
+    const t=setTimeout(()=>{
+      const el=itemRefs.current[scrollToItem];
+      if(el){
+        el.scrollIntoView({behavior:"smooth",block:"center"});
+      }
+      // Clear highlight after 2s
+      const t2=setTimeout(()=>setHighlightedItem(null),2000);
+      return()=>clearTimeout(t2);
+    },300);
+    return()=>clearTimeout(t);
+  },[scrollToItem]);
+
+  const emptyForm={name:"",subcategory:category.subcategories[0].key,price:"",location:"",inventory:"",notes:"",outOfStock:false,mapZone:null,expiryDate:"",...emptyAlcoholForm(category.subcategories[0].key)};
+  const [form,setForm]=useState(emptyForm);
+
+  function setSubcategory(sub){setForm(f=>({...f,subcategory:sub,...emptyAlcoholForm(sub)}));}
+
+  const filtered=items
+    .filter(i=>i.category===category.key)
+    .filter(i=>!activeSub||i.subcategory===activeSub)
+    .filter(i=>i.name.toLowerCase().includes(search.toLowerCase()))
+    .filter(i=>filterPack==="All"||!PACK_SUBS.includes(i.subcategory)||i.packSize===filterPack)
+    .filter(i=>filterContainer==="All"||!PACK_SUBS.includes(i.subcategory)||i.containerType===filterContainer)
+    .sort((a,b)=>{
+      if(sortBy==="type"&&WINE_SUBS.includes(activeSub||"wine")){
+        const ta=WINE_TYPES.indexOf(a.wineType||"Other"),tb=WINE_TYPES.indexOf(b.wineType||"Other");
+        return ta!==tb?ta-tb:a.name.localeCompare(b.name);
+      }
+      if(sortBy==="price_desc")return b.price-a.price;
+      if(sortBy==="price_asc")return a.price-b.price;
+      return a.name.localeCompare(b.name);
+    });
+
+  const hasFilters=search||filterPack!=="All"||filterContainer!=="All"||sortBy!=="name";
+  function resetFilters(){setSearch("");setFilterPack("All");setFilterContainer("All");setSortBy("name");}
+
+  function openEdit(item){
+    if(!isManager){onRequireManager();return;}
+    setEditItem(item);
+    setForm({name:item.name,subcategory:item.subcategory,price:String(item.price),location:item.location||"",
+      packSize:item.packSize||"6 Pack",containerType:item.containerType||"Can",
+      deposit:item.deposit!=null?String(item.deposit):"",wineType:item.wineType||"Red",
+      inventory:item.inventory!=null?String(item.inventory):"",
+      notes:item.notes||"",
+      outOfStock:item.outOfStock||false,
+      mapZone:item.mapZone||null,
+      expiryDate:item.expiryDate||""});
+    setMapOpen(!!item.mapZone);
+    setShowForm(true);
+  }
+
+  function handleAddClick(action){
+    if(action==="cancel"){setShowForm(false);setEditItem(null);setForm(emptyForm);setMapOpen(false);return;}
+    if(!isManager){onRequireManager();return;}
+    setEditItem(null);setForm(emptyForm);setMapOpen(false);setShowForm(true);
+  }
+
+  async function handleSave(){
+    if(!form.name.trim()||!form.price)return;
+    setSyncing(true);
+    const inventoryCount = form.inventory!==""?parseInt(form.inventory):null;
+    const autoOos = inventoryCount===0 ? true : form.outOfStock;
+    const autoLocation = form.location.trim() || (form.mapZone ? FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label||"" : "");
+    const base={
+      name:form.name.trim(), subcategory:form.subcategory, price:parseFloat(form.price),
+      location:autoLocation, notes:form.notes||"",
+      inventory:inventoryCount, outOfStock:autoOos,
+      mapZone:form.mapZone||null,
+      expiryDate:form.expiryDate||"",
+    };
+    const extra=PACK_SUBS.includes(form.subcategory)
+      ?{packSize:form.packSize,containerType:form.containerType,deposit:form.deposit?parseFloat(form.deposit):0}
+      :WINE_SUBS.includes(form.subcategory)?{wineType:form.wineType}:{};
+    // Build Supabase row (snake_case)
+    const row={
+      name:base.name, category:category.key, subcategory:base.subcategory,
+      price:base.price, location:base.location, notes:base.notes,
+      inventory:base.inventory, out_of_stock:base.outOfStock,
+      map_zone:base.mapZone, expiry_date:base.expiryDate||null,
+      pack_size:extra.packSize||null, container_type:extra.containerType||null,
+      deposit:extra.deposit??null, wine_type:extra.wineType||null,
+    };
+    const action=editItem?"edited":"added";
+    try{
+      if(editItem){
+        const {error}=await sb.from("items").update(row).eq("id",editItem.id);
+        if(!error)setItems(prev=>prev.map(i=>i.id===editItem.id?{...i,...base,...extra}:i));
+      } else {
+        const {data,error}=await sb.from("items").insert(row).select().single();
+        if(!error&&data)setItems(prev=>[...prev,{id:data.id,category:category.key,...base,...extra}]);
+      }
+    }catch(e){console.error("Save error:",e);}
+    const cat=CATEGORIES.find(c=>c.key===category.key);
+    const sub=category.subcategories.find(s=>s.key===base.subcategory);
+    onAuditLog&&onAuditLog({
+      id:Date.now(), action, itemName:base.name,
+      category:cat?.name||category.key, subcategory:sub?.name||base.subcategory,
+      price:parseFloat(form.price),
+      details:PACK_SUBS.includes(form.subcategory)?`${form.packSize} · ${form.containerType}`:WINE_SUBS.includes(form.subcategory)?form.wineType:"",
+      timestamp:new Date(),
+    });
+    setSyncing(false);setEditItem(null);setShowForm(false);setForm(emptyForm);
+  }
+
+  // Pack size groups for beer view
+  const packGroups=isAlcohol&&activeSub&&PACK_SUBS.includes(activeSub)&&sortBy==="name"
+    ? PACK_SIZES.filter(p=>filtered.some(i=>i.packSize===p)) : null;
+  // Wine type groups
+  const wineGroups=isAlcohol&&activeSub==="wine"&&sortBy==="type"
+    ? WINE_TYPES.filter(t=>filtered.some(i=>i.wineType===t)) : null;
+
+  const showPackFilters=isAlcohol&&activeSub&&PACK_SUBS.includes(activeSub);
+  const showWineSort=isAlcohol&&activeSub==="wine";
+
+  const inp={background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${T.border}`,borderRadius:8,padding:"10px 12px",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:14,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
+  const accentColor=baseT.accent;
+
+  return(
+    <div style={{minHeight:"100vh",background:T.bg,color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease"}}>
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.6}}
+        .icon-btn{transition:transform 0.15s ease,opacity 0.15s ease;}
+        .icon-btn:hover{transform:scale(1.08);}
+        .icon-btn:active{transform:scale(0.94);}
+        @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+      `}</style>
+
+      {/* Confirm delete modal */}
+      {confirmDelete&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:320,animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:28,textAlign:"center",marginBottom:10}}>🗑️</div>
+            <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:8,textAlign:"center"}}>
+              {confirmDelete.ids?"Delete Items?":"Delete Item?"}
+            </div>
+            <div style={{fontSize:13,color:baseT.sub,marginBottom:20,textAlign:"center",lineHeight:1.5}}>
+              {confirmDelete.ids
+                ? <><span style={{color:"#e74c3c",fontWeight:700}}>{confirmDelete.name}</span> will be permanently removed.</>
+                : <>"<span style={{color:isDark?"#f0f0f0":"#1a1a1a",fontWeight:600}}>{confirmDelete.name}</span>" will be permanently removed for everyone.</>
+              }
+            </div>
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>setConfirmDelete(null)} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.border}`,borderRadius:10,color:baseT.sub,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={async()=>{
+                if(confirmDelete.ids){
+                  await sb.from("items").delete().in("id",confirmDelete.ids);
+                  setItems(prev=>prev.filter(i=>!confirmDelete.ids.includes(i.id)));
+                  setSelected(new Set());
+                  setMassSelectMode(false);
+                } else {
+                  await sb.from("items").delete().eq("id",confirmDelete.id);
+                  setItems(prev=>prev.filter(i=>i.id!==confirmDelete.id));
+                }
+                setConfirmDelete(null);
+              }} style={{flex:2,padding:12,background:"#e74c3c",border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Mass delete confirm modal */}
+      {massSelectMode&&selected.size>0&&(
+        <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",width:"calc(100% - 32px)",maxWidth:448,zIndex:300,animation:"slideDown 0.2s ease"}}>
+          <div style={{background:"#1a0a0a",border:"1px solid #5a2a2a",borderRadius:14,padding:"14px 16px",display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,boxShadow:"0 8px 32px rgba(0,0,0,0.6)"}}>
+            <div style={{fontSize:13,color:"#e07070",fontWeight:600}}>{selected.size} item{selected.size!==1?"s":""} selected</div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setSelected(new Set(filtered.map(i=>i.id)))} style={{padding:"7px 12px",background:"transparent",border:"1px solid #3a2a2a",borderRadius:8,color:"#e07070",fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Select All</button>
+              <button onClick={()=>setConfirmDelete({id:"__mass__",name:`${selected.size} item${selected.size!==1?"s":""}`,ids:[...selected]})} style={{padding:"7px 14px",background:"#e74c3c",border:"none",borderRadius:8,color:"#fff",fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>🗑️ Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Header */}
+      <div style={{background:baseT.header,borderBottom:`1px solid ${baseT.border}`,padding:"14px 14px 0",position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
+          <button onClick={onBack} className="icon-btn" style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,width:36,height:36,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:T.badgeText,fontSize:16,flexShrink:0,fontFamily:"inherit"}}>←</button>
+          <span style={{fontSize:20}}>{category.icon}</span>
+          <div style={{flex:1}}>
+            <div style={{fontSize:17,fontWeight:700,color:accentColor}}>{category.name}</div>
+            <div style={{fontSize:11,color:baseT.sub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{filtered.length} item{filtered.length!==1?"s":""}{syncing&&<span style={{animation:"pulse 1s infinite"}}> · ⏳ Syncing…</span>}</div>
+          </div>
+          {/* Theme + lock */}
+          {isDev&&(
+            <button onClick={()=>{setMassSelectMode(m=>!m);setSelected(new Set());}} className="icon-btn"
+              style={{background:massSelectMode?"#2a0a0a":T.badge,border:`1px solid ${massSelectMode?"#e74c3c44":T.badgeBorder}`,borderRadius:8,width:34,height:34,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,transition:"background 0.2s"}}>
+              {massSelectMode?"✕":"🗑️"}
+            </button>
+          )}
+          <button onClick={onToggleTheme} className="icon-btn" style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,width:34,height:34,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,overflow:"hidden",position:"relative"}}>
+            <span style={{position:"absolute",fontSize:15,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(1) rotate(0deg)":"scale(0) rotate(180deg)",opacity:isDark?1:0}}>☀️</span>
+            <span style={{position:"absolute",fontSize:15,transition:"transform 0.4s cubic-bezier(0.34,1.2,0.64,1), opacity 0.3s ease",transform:isDark?"scale(0) rotate(-180deg)":"scale(1) rotate(0deg)",opacity:isDark?0:1}}>🌙</span>
+          </button>
+          <button onClick={()=>onRequireManager()} className="icon-btn" style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,width:34,height:34,fontSize:15,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,color:isManager?"#f0c040":baseT.sub}}><LockIcon unlocked={isManager} size={18}/></button>
+          {/* Comet Add/Cancel */}
+          <CometButton showCancel={showForm} onClick={handleAddClick}
+            accent={accentColor} accentText={baseT.accentText}
+            cancelBg={T.badge} cancelText={baseT.sub} cancelBorder={T.badgeBorder}/>
+        </div>
+
+        {/* Subcategory pills */}
+        <div style={{display:"flex",gap:8,overflowX:"auto",paddingBottom:10,scrollbarWidth:"none"}}>
+          <button onClick={()=>{setActiveSub(null);setFilterPack("All");setFilterContainer("All");}} style={{flexShrink:0,padding:"6px 14px",borderRadius:20,border:`1px solid ${!activeSub?accentColor:baseT.border}`,background:!activeSub?accentColor:"transparent",color:!activeSub?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:!activeSub?700:400}}>All</button>
+          {category.subcategories.map(sub=>(
+            <button key={sub.key} onClick={()=>{setActiveSub(sub.key===activeSub?null:sub.key);setFilterPack("All");setFilterContainer("All");}}
+              style={{flexShrink:0,padding:"6px 14px",borderRadius:20,border:`1px solid ${activeSub===sub.key?accentColor:baseT.border}`,background:activeSub===sub.key?accentColor:"transparent",color:activeSub===sub.key?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:activeSub===sub.key?700:400,whiteSpace:"nowrap",display:"flex",alignItems:"center",gap:5}}>
+              {sub.icon} {sub.name}
+            </button>
+          ))}
+        </div>
+
+        {/* Search + filters (hidden when form open) */}
+        {!showForm&&(
+          <div style={{paddingBottom:12}}>
+            <div style={{display:"flex",gap:8,marginBottom:8}}>
+              <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="🔍 Search..."
+                style={{flex:1,background:T.badge,border:`1px solid ${T.border}`,borderRadius:10,padding:"9px 12px",color:isDark?"#f0f0f0":"#1a1a1a",fontSize:13,fontFamily:"inherit",boxSizing:"border-box"}}/>
+              {hasFilters&&<button onClick={resetFilters} style={{background:T.badge,border:`1px solid ${T.badgeBorder}`,borderRadius:8,padding:"9px 12px",color:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",flexShrink:0}}>✕ Reset</button>}
+            </div>
+            <div style={{display:"flex",gap:6}}>
+              {showPackFilters&&<>
+                <select value={filterPack} onChange={e=>setFilterPack(e.target.value)} style={{flex:1,background:T.badge,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 4px",color:baseT.sub,fontSize:12,fontFamily:"inherit"}}>
+                  <option value="All">All Sizes</option>{PACK_SIZES.map(p=><option key={p} value={p}>{p}</option>)}
+                </select>
+                <select value={filterContainer} onChange={e=>setFilterContainer(e.target.value)} style={{flex:1,background:T.badge,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 4px",color:baseT.sub,fontSize:12,fontFamily:"inherit"}}>
+                  <option value="All">Can & Bottle</option>{CONTAINER_TYPES.map(c=><option key={c} value={c}>{c}</option>)}
+                </select>
+              </>}
+              <select value={sortBy} onChange={e=>setSortBy(e.target.value)} style={{flex:1,background:T.badge,border:`1px solid ${T.border}`,borderRadius:8,padding:"7px 4px",color:baseT.sub,fontSize:12,fontFamily:"inherit"}}>
+                <option value="name">A–Z</option>
+                {showWineSort&&<option value="type">By Type</option>}
+                <option value="price_asc">Price ↑</option>
+                <option value="price_desc">Price ↓</option>
+              </select>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{padding:"14px 14px 20px"}}>
+        {/* Add/Edit form */}
+        {showForm&&(
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:14,padding:18,marginBottom:16,animation:"slideDown 0.22s cubic-bezier(0.34,1.1,0.64,1)"}}>
+            <div style={{fontSize:15,fontWeight:700,color:accentColor,marginBottom:14}}>{editItem?"✏️ Edit Item":"➕ New "+category.name+" Item"}</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Item Name</div>
+              <input value={form.name} onChange={e=>setForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Bud Light" style={inp}/>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Subcategory</div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                {category.subcategories.map(sub=>(
+                  <button key={sub.key} onClick={()=>setSubcategory(sub.key)} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${form.subcategory===sub.key?accentColor:T.border}`,background:form.subcategory===sub.key?accentColor:"transparent",color:form.subcategory===sub.key?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>
+                    {sub.icon} {sub.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {/* Pack size */}
+            {PACK_SUBS.includes(form.subcategory)&&<>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Pack Size</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {PACK_SIZES.map(p=>(
+                    <button key={p} onClick={()=>setForm(f=>({...f,packSize:p,deposit:String(AUTO_DEPOSIT[p]??0)}))} style={{padding:"6px 10px",borderRadius:8,border:`1px solid ${form.packSize===p?accentColor:T.border}`,background:form.packSize===p?accentColor:"transparent",color:form.packSize===p?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.packSize===p?700:400}}>{p}</button>
+                  ))}
+                </div>
+              </div>
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Container</div>
+                <div style={{display:"flex",gap:6}}>
+                  {CONTAINER_TYPES.map(c=>(
+                    <button key={c} onClick={()=>setForm(f=>({...f,containerType:c}))} style={{padding:"6px 14px",borderRadius:8,border:`1px solid ${form.containerType===c?accentColor:T.border}`,background:form.containerType===c?accentColor:"transparent",color:form.containerType===c?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.containerType===c?700:400}}>{c==="Can"?"🥫 Can":"🍶 Bottle"}</button>
+                  ))}
+                </div>
+              </div>
+            </>}
+            {/* Wine type */}
+            {WINE_SUBS.includes(form.subcategory)&&(
+              <div style={{marginBottom:10}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Wine Type</div>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6}}>
+                  {WINE_TYPES.map(w=>(
+                    <button key={w} onClick={()=>setForm(f=>({...f,wineType:w}))} style={{padding:"6px 12px",borderRadius:8,border:`1px solid ${form.wineType===w?accentColor:T.border}`,background:form.wineType===w?accentColor:"transparent",color:form.wineType===w?baseT.accentText:baseT.sub,fontSize:12,cursor:"pointer",fontFamily:"inherit",fontWeight:form.wineType===w?700:400}}>{w}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div style={{display:"flex",gap:8,marginBottom:PACK_SUBS.includes(form.subcategory)?10:12}}>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Price ($)</div>
+                <input type="number" min="0" step="0.01" value={form.price} onChange={e=>setForm(f=>({...f,price:e.target.value}))} placeholder="0.00" style={inp}/>
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Location Label</div>
+                <input value={form.location} onChange={e=>setForm(f=>({...f,location:e.target.value}))} placeholder="e.g. Aisle 2" style={inp}/>
+              </div>
+            </div>
+
+            {/* Floor plan zone picker — collapsible */}
+            <div style={{marginBottom:12}}>
+              <button type="button" onClick={()=>setMapOpen(o=>!o)} style={{width:"100%",display:"flex",alignItems:"center",justifyContent:"space-between",background:"none",border:"none",padding:"0 0 5px",cursor:"pointer",fontFamily:"inherit"}}>
+                <div style={{fontSize:11,color:baseT.sub,textTransform:"uppercase",letterSpacing:"0.06em"}}>
+                  Pin on Floor Map {form.mapZone&&<span style={{color:accentColor}}>· {FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label}</span>}
+                </div>
+                <span style={{fontSize:12,color:baseT.sub,transform:mapOpen?"rotate(180deg)":"rotate(0deg)",transition:"transform 0.25s ease",display:"inline-block"}}>▾</span>
+              </button>
+              <div style={{display:"grid",gridTemplateRows:mapOpen?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
+                <div style={{overflow:"hidden"}}>
+                  <FloorPlan pinZone={form.mapZone} onSelectZone={z=>setForm(f=>({...f,mapZone:f.mapZone===z?null:z}))} accent={accentColor}/>
+                  {form.mapZone&&(
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:6}}>
+                      <span style={{fontSize:11,color:accentColor,fontWeight:600}}>📍 {FLOOR_ZONES.find(z=>z.key===form.mapZone)?.label}</span>
+                      <button onClick={()=>setForm(f=>({...f,mapZone:null}))} style={{fontSize:11,color:baseT.sub,background:"none",border:"none",cursor:"pointer",padding:0,fontFamily:"inherit"}}>✕ Clear</button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {PACK_SUBS.includes(form.subcategory)&&(
+              <div style={{marginBottom:12}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Deposit ($) <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— auto-filled, editable</span></div>
+                <input type="number" min="0" step="0.01" value={form.deposit||""} onChange={e=>setForm(f=>({...f,deposit:e.target.value}))} placeholder="0.00" style={inp}/>
+              </div>
+            )}
+
+            {/* Inventory count */}
+            <div style={{marginBottom:12}}>
+              <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>
+                Inventory Count <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— optional · 0 = out of stock</span>
+              </div>
+              <input type="number" min="0" step="1" value={form.inventory}
+                onChange={e=>{
+                  const val=e.target.value;
+                  setForm(f=>({...f,inventory:val,outOfStock:val!==""&&parseInt(val)===0?true:f.outOfStock}));
+                }}
+                placeholder="e.g. 24" style={inp}/>
+            </div>
+
+            {/* Out of stock toggle */}
+            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:12,padding:"11px 14px",background:isDark?baseT.bg:"#f8f8f0",border:`1px solid ${form.outOfStock?"#e74c3c44":T.border}`,borderRadius:10,transition:"border-color 0.2s"}}>
+              <div>
+                <div style={{fontSize:14,color:isDark?"#f0f0f0":"#1a1a1a"}}>Out of Stock</div>
+                {form.inventory!==""&&parseInt(form.inventory)===0&&<div style={{fontSize:11,color:"#e74c3c",marginTop:2}}>Auto-set because inventory is 0</div>}
+              </div>
+              <button onClick={()=>setForm(f=>({...f,outOfStock:!f.outOfStock}))}
+                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.outOfStock?"#e74c3c":T.badge,position:"relative",transition:"background 0.2s",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.outOfStock?25:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+              </button>
+            </div>
+
+            {/* Notes */}
+            <div style={{marginBottom:category.key==="grocery"?10:14}}>
+              <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— optional</span></div>
+              <textarea value={form.notes} onChange={e=>setForm(f=>({...f,notes:e.target.value}))} placeholder="e.g. Price change coming, check with supplier…" style={{...inp,minHeight:70,resize:"none",lineHeight:1.5}}/>
+            </div>
+
+            {/* Next Expiration Date — grocery only */}
+            {category.key==="grocery"&&(
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:baseT.sub,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>
+                  Next Expiration Date <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— optional</span>
+                </div>
+                <input type="date" value={form.expiryDate} onChange={e=>setForm(f=>({...f,expiryDate:e.target.value}))} style={{...inp,colorScheme:isDark?"dark":"light"}}/>
+                {form.expiryDate&&(()=>{
+                  const days=Math.ceil((new Date(form.expiryDate)-new Date())/(1000*60*60*24));
+                  const color=days<=3?"#e74c3c":days<=7?"#e67e22":"#27ae60";
+                  return <div style={{fontSize:11,color,marginTop:4,fontWeight:600}}>{days<=0?"⚠️ Expired":days===1?"⚠️ Expires tomorrow":`✓ Expires in ${days} day${days!==1?"s":""}`}</div>;
+                })()}
+              </div>
+            )}
+
+            <button onClick={handleSave} disabled={syncing} style={{width:"100%",padding:"12px",background:accentColor,border:"none",borderRadius:10,color:baseT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit",opacity:syncing?0.7:1}}>
+              {syncing?"Saving…":editItem?"Save Changes":"Add Item"}
+            </button>
+          </div>
+        )}
+
+        {filtered.length===0&&!showForm&&(
+          <div style={{textAlign:"center",color:baseT.sub,padding:"50px 20px"}}>
+            <div style={{fontSize:32,marginBottom:8}}>{category.icon}</div>
+            <div style={{fontSize:14}}>No items{hasFilters?" matching filters":""}.{hasFilters&&<span style={{display:"block",fontSize:12,marginTop:4,opacity:0.7}}>Try resetting filters.</span>}</div>
+          </div>
+        )}
+
+        {/* Render with grouping — hidden while form is open */}
+        {!showForm&&(()=>{
+          function renderItem(item,idx){
+            const isChecked=selected.has(item.id);
+            const isHighlighted=highlightedItem===item.id;
+            const toggle=()=>{
+              setSelected(prev=>{
+                const n=new Set(prev);
+                n.has(item.id)?n.delete(item.id):n.add(item.id);
+                return n;
+              });
+            };
+            if(massSelectMode){
+              return(
+                <div key={item.id} onClick={toggle} style={{animation:`fadeUp 0.22s ease ${idx*0.05}s both`,display:"flex",alignItems:"center",gap:10,marginBottom:10,cursor:"pointer"}}>
+                  <div style={{width:22,height:22,borderRadius:6,border:`2px solid ${isChecked?accentColor:T.border}`,background:isChecked?accentColor:"transparent",flexShrink:0,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.15s ease"}}>
+                    {isChecked&&<span style={{color:baseT.accentText,fontSize:13,fontWeight:700,lineHeight:1}}>✓</span>}
+                  </div>
+                  <div style={{flex:1,opacity:isChecked?1:0.6,transition:"opacity 0.15s",pointerEvents:"none"}}>
+                    <ItemCard item={item} T={T} onEdit={()=>{}} onDelete={()=>{}} onToggle={()=>{}}/>
+                  </div>
+                </div>
+              );
+            }
+            return(
+              <div key={item.id} ref={el=>itemRefs.current[item.id]=el}
+                style={{
+                  animation:`fadeUp 0.22s ease ${idx*0.05}s both`,
+                  borderRadius:14,
+                  boxShadow:isHighlighted?`0 0 0 2px ${accentColor}, 0 0 20px ${accentColor}55`:"none",
+                  transition:"box-shadow 0.4s ease",
+                }}>
+                <SwipeRow onSwipeLeft={()=>openEdit(item)} accentColor={accentColor}>
+                  <ItemCard item={item} T={T} onEdit={()=>openEdit(item)}
+                    forceExpand={isHighlighted}
+                    onDelete={()=>{if(!isManager){onRequireManager();return;}setConfirmDelete({id:item.id,name:item.name});}}
+                    onToggle={()=>{if(!isManager){onRequireManager();return;}const newOos=!item.outOfStock;sb.from('items').update({out_of_stock:newOos}).eq('id',item.id);setItems(prev=>prev.map(i=>i.id===item.id?{...i,outOfStock:newOos}:i));}}/>
+                </SwipeRow>
+              </div>
+            );
+          }
+          return packGroups ? packGroups.map(pack=>(
+            <div key={pack} style={{animation:"fadeUp 0.25s ease both"}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8}}>{pack}</div>
+              {filtered.filter(i=>i.packSize===pack).map((item,idx)=>renderItem(item,idx))}
+            </div>
+          )) : wineGroups ? wineGroups.map(type=>(
+            <div key={type} style={{animation:"fadeUp 0.25s ease both"}}>
+              <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8}}>🍷 {type}</div>
+              {filtered.filter(i=>i.wineType===type).map((item,idx)=>renderItem(item,idx))}
+            </div>
+          )) : !activeSub ? category.subcategories.map(sub=>{
+            const subItems=filtered.filter(i=>i.subcategory===sub.key);
+            if(!subItems.length)return null;
+            return(
+              <div key={sub.key}>
+                <div style={{fontSize:11,fontWeight:700,letterSpacing:"0.1em",textTransform:"uppercase",color:accentColor,margin:"18px 0 8px",opacity:0.8,display:"flex",alignItems:"center",gap:6}}>{sub.icon} {sub.name}</div>
+                {subItems.map((item,idx)=>renderItem(item,idx))}
+              </div>
+            );
+          }) : filtered.map((item,idx)=>renderItem(item,idx));
+        })()}
+      </div>
+    </div>
+  );
+}
+
+// ── BugsPage ──────────────────────────────────────────────────────────────────
+function BugsPage({T,isManager,onRequireManager}){
+  const [knownBugs,setKnownBugs]=useState([]);
+  const [reports,setReports]=useState([]);
+  const [showForm,setShowForm]=useState(false);
+  const [form,setForm]=useState({title:"",description:"",severity:"Medium"});
+  const inp={width:"100%",background:T.inputBg||"#0f1117",border:`1px solid ${T.inputBorder||"#2a3050"}`,borderRadius:10,padding:"10px 12px",color:"#f0f0f0",fontSize:14,fontFamily:"inherit",boxSizing:"border-box"};
+  return(
+    <div style={{padding:"20px 14px",fontFamily:"'Georgia','Times New Roman',serif"}}>
+      <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>🐛 Known Bugs</div>
+      <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Issues the team is aware of</div>
+      {knownBugs.length===0&&<div style={{textAlign:"center",padding:"24px",background:T.card||T.cardBg,borderRadius:12,border:`1px solid ${T.border||T.cardBorder}`,marginBottom:20}}><div style={{fontSize:28,marginBottom:6}}>✅</div><div style={{fontSize:14,fontWeight:600,color:"#f0f0f0",marginBottom:2}}>No known bugs!</div><div style={{fontSize:12,color:T.sub||T.subText}}>Found something? Report it below.</div></div>}
+      {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"#f0f0f0",sub:T.sub||T.subText}} canDelete={false}/>)}
+      <div style={{height:1,background:T.border||T.cardBorder,margin:"24px 0"}}/>
+      <div style={{fontSize:22,fontWeight:700,color:T.accent,marginBottom:4}}>📝 Report a Bug</div>
+      <div style={{fontSize:12,color:T.sub||T.subText,marginBottom:16}}>Requires manager PIN</div>
+      {!showForm?(
+        <button onClick={()=>{if(!isManager){onRequireManager();return;}setShowForm(true);}} style={{width:"100%",padding:"13px",background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>+ Submit Bug Report</button>
+      ):(
+        <div style={{background:T.card||T.cardBg,border:`1px solid ${T.border||T.cardBorder}`,borderRadius:14,padding:18}}>
+          <div style={{marginBottom:10}}><div style={{fontSize:11,color:T.sub||T.subText,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Title</div><input style={inp} value={form.title} onChange={e=>setForm(f=>({...f,title:e.target.value}))} placeholder="Short description"/></div>
+          <div style={{marginBottom:10}}><div style={{fontSize:11,color:T.sub||T.subText,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Description</div><textarea style={{...inp,minHeight:80,resize:"none",lineHeight:1.5}} value={form.description} onChange={e=>setForm(f=>({...f,description:e.target.value}))} placeholder="What happened?"/></div>
+          <div style={{marginBottom:14}}><div style={{fontSize:11,color:T.sub||T.subText,marginBottom:5,textTransform:"uppercase",letterSpacing:"0.06em"}}>Severity</div>
+            <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+              {SEVERITY_LEVELS.map(s=>{const c={Low:"#27ae60",Medium:"#f0c040",High:"#e67e22",Critical:"#e74c3c"}[s];return <button key={s} onClick={()=>setForm(f=>({...f,severity:s}))} style={{padding:"7px 14px",borderRadius:8,border:`1px solid ${form.severity===s?c:T.border||T.cardBorder}`,background:form.severity===s?`${c}22`:"transparent",color:form.severity===s?c:T.sub||T.subText,fontSize:13,cursor:"pointer",fontFamily:"inherit",fontWeight:form.severity===s?700:400}}>{s}</button>;})}
+            </div>
+          </div>
+          <div style={{display:"flex",gap:10}}>
+            <button onClick={()=>setShowForm(false)} style={{flex:1,padding:12,background:"transparent",border:`1px solid ${T.border||T.cardBorder}`,borderRadius:10,color:T.sub||T.subText,fontSize:14,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+            <button onClick={async()=>{if(!form.title||!form.description)return;await sb.from("bug_reports").insert({title:form.title,description:form.description,severity:form.severity,status:"Open",created_at:new Date().toLocaleDateString()});setForm({title:"",description:"",severity:"Medium"});setShowForm(false);alert("Bug report submitted!");}} style={{flex:2,padding:12,background:T.accent,border:"none",borderRadius:10,color:T.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Submit</button>
+          </div>
+        </div>
+      )}
+      {reports.length>0&&<><div style={{height:1,background:T.border||T.cardBorder,margin:"24px 0"}}/><div style={{fontSize:14,fontWeight:700,color:"#f0f0f0",marginBottom:12}}>Reports ({reports.length})</div>{reports.map(r=><BugCard key={r.id} bug={r} T={{card:T.card||T.cardBg,border:T.border||T.cardBorder,text:"#f0f0f0",sub:T.sub||T.subText}} canDelete={false}/>)}</>}
+    </div>
+  );
+}
+
+// ── DevPage ───────────────────────────────────────────────────────────────────
+function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateChange}){
+  const [knownBugs,setKnownBugs]=useState([]);
+  const [reports,setReports]=useState([]);
+  const [managerDisabled,setManagerDisabled]=useState(false);
+
+  // Load known bugs, reports and managerDisabled from Supabase
+  useEffect(()=>{
+    sb.from("known_bugs").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setKnownBugs(data);});
+    sb.from("bug_reports").select("*").order("created_at",{ascending:false}).then(({data})=>{if(data)setReports(data);});
+    sb.from("app_settings").select("value").eq("key","manager_disabled").single().then(({data})=>{if(data)setManagerDisabled(data.value==="true");});
+  },[]);
+
+  async function toggleManagerDisabled(){
+    const next=!managerDisabled;
+    setManagerDisabled(next);
+    await sb.from("app_settings").upsert({key:"manager_disabled",value:String(next)},{onConflict:"key"});
+  }
+  const [showAddBug,setShowAddBug]=useState(false);
+  const [bugForm,setBugForm]=useState({title:"",description:"",severity:"Medium",status:"Open"});
+  const [taxRateInput,setTaxRateInput]=useState(String((taxRate*100).toFixed(2)));
+  const [taxRateSaved,setTaxRateSaved]=useState(false);
+  function handleTaxSave(){
+    const val=parseFloat(taxRateInput);
+    if(isNaN(val)||val<0||val>100)return;
+    onTaxRateChange&&onTaxRateChange(val/100);
+    setTaxRateSaved(true);
+    setTimeout(()=>setTaxRateSaved(false),2000);
+  }
+  if(!isDev)return(
+    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,paddingBottom:80}}>
+      <div style={{fontSize:11,color:DT.subText,letterSpacing:"0.15em",marginBottom:12}}>// AUTHENTICATION REQUIRED</div>
+      <div style={{fontSize:28,fontWeight:700,color:DT.accent,marginBottom:8,letterSpacing:"0.05em"}}>ACCESS_DENIED</div>
+      <div style={{fontSize:12,color:DT.subText,marginBottom:32,letterSpacing:"0.05em"}}>Enter developer credentials to proceed</div>
+      <button onClick={onUnlock} style={{padding:"13px 32px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.1em"}}>ENTER_PIN →</button>
+    </div>
+  );
+  return(
+    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",paddingBottom:80}}>
+      <div style={{background:DT.headerBg,borderBottom:`1px solid ${DT.cardBorder}`,padding:"16px 16px 14px"}}>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",marginBottom:3}}>// developer console</div>
+        <div style={{fontSize:20,fontWeight:700,color:DT.accent,letterSpacing:"0.05em",marginBottom:8}}>DEV MODE</div>
+        <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+          <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.green}15`,color:DT.green,border:`1px solid ${DT.green}30`,letterSpacing:"0.08em"}}>● SESSION ACTIVE</span>
+          <span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`,letterSpacing:"0.08em"}}>● FULL ACCESS</span>
+          {managerDisabled&&<span style={{fontSize:10,padding:"3px 8px",borderRadius:4,background:`${DT.red}15`,color:DT.red,border:`1px solid ${DT.red}30`,letterSpacing:"0.08em"}}>● MANAGERS LOCKED</span>}
+        </div>
+      </div>
+      <div style={{padding:"20px 14px"}}>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// security.managerPin</div>
+        <div style={{background:DT.cardBg,border:`1px solid ${managerDisabled?"#ff446644":DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24,transition:"border-color 0.3s"}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Manager PIN</div>
+            <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?`${DT.red}15`:`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?DT.red+"44":DT.green+"44"}`,borderRadius:4,letterSpacing:"0.06em"}}>{managerDisabled?"DISABLED":"ACTIVE"}</span>
+          </div>
+          {managerDisabled&&<div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>// WARNING: Manager permissions currently DISABLED</div>}
+          <button onClick={toggleManagerDisabled} style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:10,transition:"all 0.3s"}}>
+            {managerDisabled?"✓ ENABLE_MANAGERS →":"⊘ DISABLE_MANAGERS →"}
+          </button>
+          <button style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>CHANGE_PIN →</button>
+        </div>
+        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// config.taxRate</div>
+        <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:24}}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:10}}>
+            <div style={{fontSize:14,fontWeight:700,color:DT.text}}>Sales Tax Rate</div>
+            <span style={{fontSize:16,fontWeight:700,color:DT.accent}}>{(taxRate*100).toFixed(2)}%</span>
+          </div>
+          <div style={{fontSize:11,color:DT.subText,marginBottom:10,letterSpacing:"0.04em"}}>// affects Cash Tools tax calculator</div>
+          <div style={{display:"flex",gap:8,marginBottom:8}}>
+            <input type="number" min="0" max="100" step="0.01" value={taxRateInput}
+              onChange={e=>{setTaxRateInput(e.target.value);setTaxRateSaved(false);}}
+              style={{flex:1,background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:14,fontFamily:"'Courier New',monospace",boxSizing:"border-box"}}/>
+            <span style={{display:"flex",alignItems:"center",fontSize:14,color:DT.subText,paddingRight:4}}>%</span>
+          </div>
+          <div style={{display:"flex",gap:8}}>
+            <button onClick={()=>{setTaxRateInput(String((DEFAULT_TAX_RATE*100).toFixed(2)));setTaxRateSaved(false);}}
+              style={{flex:1,padding:"9px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>
+              RESET_DEFAULT →
+            </button>
+            <button onClick={handleTaxSave}
+              style={{flex:2,padding:"9px",background:taxRateSaved?`${DT.green}20`:`${DT.accent}15`,border:`1px solid ${taxRateSaved?DT.green:DT.accent}44`,borderRadius:6,color:taxRateSaved?DT.green:DT.accent,fontSize:11,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",transition:"all 0.2s"}}>
+              {taxRateSaved?"✓ SAVED":"SAVE_RATE →"}
+            </button>
+          </div>
+        </div>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.known [{knownBugs.length}]</div>
+        <button onClick={()=>setShowAddBug(v=>!v)} style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em",marginBottom:12}}>{showAddBug?"✕ CANCEL":"+ ADD_KNOWN_BUG →"}</button>
+        {showAddBug&&(
+          <div style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:10,padding:16,marginBottom:14}}>
+            <input style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}} placeholder="Bug title" value={bugForm.title} onChange={e=>setBugForm(f=>({...f,title:e.target.value}))}/>
+            <textarea style={{width:"100%",background:DT.inputBg,border:`1px solid ${DT.inputBorder}`,borderRadius:6,padding:"9px 12px",color:DT.text,fontSize:13,fontFamily:"inherit",boxSizing:"border-box",minHeight:70,resize:"none",lineHeight:1.5,marginBottom:10}} placeholder="Description" value={bugForm.description} onChange={e=>setBugForm(f=>({...f,description:e.target.value}))}/>
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:12}}>
+              {SEVERITY_LEVELS.map(s=>{const c={Low:"#00ff88",Medium:"#f0c040",High:"#e67e22",Critical:"#ff4466"}[s];return <button key={s} onClick={()=>setBugForm(f=>({...f,severity:s}))} style={{padding:"5px 10px",borderRadius:4,border:`1px solid ${bugForm.severity===s?c:DT.cardBorder}`,background:bugForm.severity===s?`${c}20`:"transparent",color:bugForm.severity===s?c:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"inherit"}}>{s.toUpperCase()}</button>;})}
+            </div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowAddBug(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>CANCEL</button>
+              <button onClick={async()=>{if(!bugForm.title||!bugForm.description)return;const{data}=await sb.from("known_bugs").insert({title:bugForm.title,description:bugForm.description,severity:bugForm.severity,status:bugForm.status,created_at:new Date().toLocaleDateString()}).select().single();if(data)setKnownBugs(prev=>[data,...prev]);setBugForm({title:"",description:"",severity:"Medium",status:"Open"});setShowAddBug(false);}} style={{flex:2,padding:"8px",background:DT.accent,border:"none",borderRadius:6,color:DT.accentText,fontSize:12,fontWeight:700,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em"}}>PUSH_BUG →</button>
+            </div>
+          </div>
+        )}
+        {knownBugs.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px",letterSpacing:"0.08em"}}>// array empty</div>}
+        {knownBugs.map(bug=><BugCard key={bug.id} bug={bug} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("known_bugs").delete().eq("id",bug.id);setKnownBugs(prev=>prev.filter(b=>b.id!==bug.id));}}/>)}
+
+        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// bugs.reports [{reports.length}]</div>
+        {reports.length===0&&<div style={{fontSize:12,color:DT.subText,padding:"8px 0 20px",letterSpacing:"0.08em"}}>// array empty</div>}
+        {reports.map(r=><BugCard key={r.id} bug={r} T={{card:DT.cardBg,border:DT.cardBorder,text:DT.text,sub:DT.subText}} canDelete onDelete={async()=>{await sb.from("bug_reports").delete().eq("id",r.id);setReports(prev=>prev.filter(b=>b.id!==r.id));}}/>)}
+
+        <div style={{height:1,background:DT.cardBorder,margin:"20px 0"}}/>
+
+        {/* Audit log */}
+        <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",textTransform:"uppercase",marginBottom:8}}>// audit.log [last {auditLog.length}/5]</div>
+        {auditLog.length===0?(
+          <div style={{fontSize:12,color:DT.subText,padding:"8px 0",letterSpacing:"0.08em"}}>// array empty — no edits recorded this session</div>
+        ):(
+          auditLog.map((entry,i)=>{
+            const actionColor=entry.action==="added"?DT.green:"#f0c040";
+            const t=entry.timestamp;
+            const timeStr=t?`${t.getHours().toString().padStart(2,"0")}:${t.getMinutes().toString().padStart(2,"0")}:${t.getSeconds().toString().padStart(2,"0")}`:"--:--:--";
+            return(
+              <div key={entry.id} style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${actionColor}`}}>
+                <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
+                  <span style={{fontSize:11,fontWeight:700,color:actionColor,letterSpacing:"0.08em",textTransform:"uppercase"}}>{entry.action==="added"?"+ ADDED":"~ EDITED"}</span>
+                  <span style={{fontSize:10,color:DT.subText,fontFamily:"'Courier New',monospace"}}>{timeStr}</span>
+                </div>
+                <div style={{fontSize:13,color:DT.text,fontWeight:600,marginBottom:3}}>{entry.itemName}</div>
+                <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}15`,color:DT.accent,border:`1px solid ${DT.accent}30`}}>{entry.category}</span>
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.subcategory}</span>
+                  {entry.details&&<span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:`${DT.accent}10`,color:DT.subText,border:`1px solid ${DT.cardBorder}`}}>{entry.details}</span>}
+                  <span style={{fontSize:10,padding:"2px 7px",borderRadius:4,background:"#f0c04015",color:"#f0c040",border:"1px solid #f0c04030"}}>${entry.price.toFixed(2)}</span>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── SchedulePage ──────────────────────────────────────────────────────────────
+const MONTH_NAMES=["January","February","March","April","May","June","July","August","September","October","November","December"];
+const DAY_NAMES=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+const HOURLY_RATE=15;
+
+// ── Schedule shifts via Supabase ──────────────────────────────────────────────
+// Persist month in sessionStorage so it remembers last viewed (UI state only)
+function loadMonth(){try{const s=sessionStorage.getItem("sched-month");return s?JSON.parse(s):null;}catch{return null;}}
+function saveMonth(m){try{sessionStorage.setItem("sched-month",JSON.stringify(m));}catch{}}
+
+async function fetchShifts(){
+  const {data,error}=await sb.from("schedule_shifts").select("*");
+  if(error||!data)return{};
+  // Convert array to {month-day: [...shifts]} map
+  const map={};
+  data.forEach(row=>{
+    const key=row.day_key;
+    if(!map[key])map[key]=[];
+    map[key].push({id:row.id,name:row.name,startTime:row.start_time,endTime:row.end_time,notes:row.notes||""});
+  });
+  return map;
+}
+
+async function saveShiftToSupabase(dayKey,shift){
+  const {data,error}=await sb.from("schedule_shifts").insert({
+    day_key:dayKey,name:shift.name,start_time:shift.startTime,end_time:shift.endTime,notes:shift.notes||""
+  }).select().single();
+  if(error)throw error;
+  return data.id;
+}
+
+async function updateShiftInSupabase(id,shift){
+  await sb.from("schedule_shifts").update({
+    name:shift.name,start_time:shift.startTime,end_time:shift.endTime,notes:shift.notes||""
+  }).eq("id",id);
+}
+
+async function deleteShiftFromSupabase(id){
+  await sb.from("schedule_shifts").delete().eq("id",id);
+}
+
+function parseHours(startTime,endTime){
+  if(!startTime||!endTime)return 0;
+  const [sh,sm]=startTime.split(":").map(Number);
+  const [eh,em]=endTime.split(":").map(Number);
+  const diff=(eh*60+em)-(sh*60+sm);
+  return Math.max(0,diff/60);
+}
+
+function SchedulePage({isManager,isDark,onUnlock}){
+  const now=new Date();
+  const currentYear=now.getFullYear();
+  const saved=loadMonth();
+  const [month,setMonth]=useState(saved?saved.month:now.getMonth());
+  const [shifts,setShifts]=useState({});
+  const [shiftsLoading,setShiftsLoading]=useState(true);
+  const [focusDay,setFocusDay]=useState(null);
+  const [showShiftForm,setShowShiftForm]=useState(false);
+  const [editShift,setEditShift]=useState(null);
+  const [shiftForm,setShiftForm]=useState({name:"",startTime:"09:00",endTime:"17:00",notes:""});
+
+  const bg=isDark?"#080b12":"#f0f0e8";
+  const card=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const accent="#7c83fd";
+  const inp={background:isDark?"#0a0f1e":"#f8f8f0",border:`1px solid ${border}`,borderRadius:8,padding:"9px 12px",color:text,fontSize:14,fontFamily:"inherit",width:"100%",boxSizing:"border-box"};
+
+  useEffect(()=>{saveMonth({month});},[month]);
+
+  // Load shifts from Supabase on mount
+  useEffect(()=>{
+    fetchShifts().then(data=>{setShifts(data);setShiftsLoading(false);}).catch(()=>setShiftsLoading(false));
+  },[]);
+
+  const firstDay=new Date(currentYear,month,1).getDay();
+  const daysInMonth=new Date(currentYear,month+1,0).getDate();
+  const cells=[];
+  for(let i=0;i<firstDay;i++)cells.push(null);
+  for(let d=1;d<=daysInMonth;d++)cells.push(d);
+
+  function dayKey(d){return `${month}-${d}`;}
+  function dayShifts(d){return shifts[dayKey(d)]||[];}
+
+  async function addOrUpdateShift(){
+    if(!shiftForm.name.trim())return;
+    const key=dayKey(focusDay);
+    const arr=[...(shifts[key]||[])];
+    if(editShift!==null){
+      // Update existing
+      const existing=arr[editShift];
+      await updateShiftInSupabase(existing.id,shiftForm);
+      arr[editShift]={...existing,...shiftForm};
+    } else {
+      // Insert new
+      const newId=await saveShiftToSupabase(key,shiftForm);
+      arr.push({...shiftForm,id:newId});
+    }
+    setShifts(prev=>({...prev,[key]:arr}));
+    setShiftForm({name:"",startTime:"09:00",endTime:"17:00",notes:""});
+    setShowShiftForm(false);setEditShift(null);
+  }
+
+  async function deleteShift(day,idx){
+    const key=dayKey(day);
+    const arr=[...(shifts[key]||[])];
+    const shift=arr[idx];
+    if(shift?.id)await deleteShiftFromSupabase(shift.id);
+    arr.splice(idx,1);
+    setShifts(prev=>({...prev,[key]:arr}));
+  }
+
+  // Monthly earnings per person
+  const earnings={};
+  Object.entries(shifts).forEach(([k,arr])=>{
+    if(!k.startsWith(`${month}-`))return;
+    arr.forEach(s=>{
+      const name=s.name.trim();
+      if(!name)return;
+      const hrs=parseHours(s.startTime,s.endTime);
+      earnings[name]=(earnings[name]||0)+hrs;
+    });
+  });
+
+  function nameColor(name,lightness){
+    const hue=(name.split("").reduce((a,c)=>a+c.charCodeAt(0),0)*47)%360;
+    return `hsl(${hue},55%,${lightness}%)`;
+  }
+
+  if(!isManager) return(
+    <div style={{minHeight:"100vh",background:bg,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:32,paddingBottom:80}}>
+      <div style={{fontSize:40,marginBottom:12}}>📅</div>
+      <div style={{fontSize:18,fontWeight:700,color:text,marginBottom:8}}>Manager Access Required</div>
+      <div style={{fontSize:13,color:sub,marginBottom:28,textAlign:"center"}}>Sign in to view the work schedule.</div>
+      <button onClick={onUnlock} style={{padding:"12px 28px",background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Sign In</button>
+    </div>
+  );
+
+  // ── Day detail view ────────────────────────────────────────────────────────
+  if(focusDay!==null){
+    const daySh=dayShifts(focusDay);
+    return(
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+        <style>{`@keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}} @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
+        <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <button onClick={()=>{setFocusDay(null);setShowShiftForm(false);setEditShift(null);}} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:34,height:34,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:16,color:text,fontFamily:"inherit",flexShrink:0}}>←</button>
+            <div style={{flex:1}}>
+              <div style={{fontSize:18,fontWeight:700,color:accent}}>{MONTH_NAMES[month]} {focusDay}</div>
+              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.05em"}}>{daySh.length} shift{daySh.length!==1?"s":""}</div>
+            </div>
+            <button onClick={()=>{setEditShift(null);setShiftForm({name:"",startTime:"09:00",endTime:"17:00",notes:""});setShowShiftForm(v=>!v);}}
+              style={{padding:"8px 14px",background:showShiftForm?"transparent":accent,border:`1px solid ${showShiftForm?border:accent}`,borderRadius:20,cursor:"pointer",fontFamily:"inherit",color:showShiftForm?sub:"#fff",fontSize:12,fontWeight:700,transition:"all 0.2s"}}>
+              {showShiftForm?"✕ Cancel":"+ Add Shift"}
+            </button>
+          </div>
+        </div>
+        <div style={{padding:"14px"}}>
+          {showShiftForm&&(
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:14,animation:"slideDown 0.22s cubic-bezier(0.34,1.1,0.64,1)"}}>
+              <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Name</div>
+              <input value={shiftForm.name} onChange={e=>setShiftForm(f=>({...f,name:e.target.value}))} placeholder="e.g. Alex" style={{...inp,marginBottom:10}}/>
+              <div style={{display:"flex",gap:8,marginBottom:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Start</div>
+                  <input type="time" value={shiftForm.startTime} onChange={e=>setShiftForm(f=>({...f,startTime:e.target.value}))} style={inp}/>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>End</div>
+                  <input type="time" value={shiftForm.endTime} onChange={e=>setShiftForm(f=>({...f,endTime:e.target.value}))} style={inp}/>
+                </div>
+              </div>
+              {(()=>{
+                const hrs=parseHours(shiftForm.startTime,shiftForm.endTime);
+                return hrs>0?(
+                  <div style={{background:isDark?"#0a1a0a":"#f0faf0",border:`1px solid ${isDark?"#1a3a1a":"#b0d0b0"}`,borderRadius:8,padding:"8px 12px",marginBottom:10,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <span style={{fontSize:12,color:isDark?"#4aaa4a":"#2a7a2a"}}>{hrs.toFixed(1)}h @ $15/hr</span>
+                    <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)} before tax</span>
+                  </div>
+                ):null;
+              })()}
+              <div style={{fontSize:11,color:sub,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.06em"}}>Notes <span style={{opacity:0.5,fontWeight:400,textTransform:"none",letterSpacing:0}}>— optional</span></div>
+              <textarea value={shiftForm.notes} onChange={e=>setShiftForm(f=>({...f,notes:e.target.value}))} placeholder="Any notes…" style={{...inp,minHeight:54,resize:"none",lineHeight:1.5,marginBottom:12}}/>
+              <button onClick={addOrUpdateShift} style={{width:"100%",padding:11,background:accent,border:"none",borderRadius:10,color:"#fff",fontSize:14,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>
+                {editShift!==null?"Save Changes":"Add Shift"}
+              </button>
+            </div>
+          )}
+          {daySh.length===0&&!showShiftForm&&(
+            <div style={{textAlign:"center",color:sub,padding:"50px 20px"}}>
+              <div style={{fontSize:32,marginBottom:8}}>📋</div>
+              <div style={{fontSize:14}}>No shifts scheduled. Tap + Add Shift.</div>
+            </div>
+          )}
+          {daySh.map((s,idx)=>{
+            const hrs=parseHours(s.startTime,s.endTime);
+            return(
+              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`fadeUp 0.22s ease ${idx*0.05}s both`}}>
+                <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:s.notes?6:0}}>
+                  <div style={{width:32,height:32,borderRadius:"50%",background:nameColor(s.name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                    <span style={{fontSize:13,fontWeight:700,color:nameColor(s.name,isDark?80:20)}}>{s.name.trim()[0]?.toUpperCase()||"?"}</span>
+                  </div>
+                  <div style={{flex:1}}>
+                    <div style={{fontSize:15,fontWeight:600,color:text}}>{s.name}</div>
+                    <div style={{fontSize:12,color:sub}}>{s.startTime} – {s.endTime} · {hrs.toFixed(1)}h</div>
+                  </div>
+                  <div style={{textAlign:"right",marginRight:4}}>
+                    <div style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)}</div>
+                    <div style={{fontSize:10,color:sub}}>before tax</div>
+                  </div>
+                  <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                    <button onClick={()=>{setEditShift(idx);setShiftForm({name:s.name,startTime:s.startTime,endTime:s.endTime,notes:s.notes||""});setShowShiftForm(true);}} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:2}}>✏️</button>
+                    <button onClick={()=>deleteShift(focusDay,idx)} style={{background:"none",border:"none",color:"#e07070",fontSize:14,cursor:"pointer",padding:2}}>🗑️</button>
+                  </div>
+                </div>
+                {s.notes&&<div style={{fontSize:12,color:sub,padding:"6px 10px",background:isDark?"#0a0a18":"#f4f4f0",borderRadius:7,lineHeight:1.4}}>📝 {s.notes}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Month calendar view ────────────────────────────────────────────────────
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+      <style>{`
+        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .cal-day{transition:transform 0.1s ease,box-shadow 0.15s ease;}
+        .cal-day:active{transform:scale(0.95);}
+        .cal-day:hover{box-shadow:0 4px 16px rgba(0,0,0,0.2);}
+      `}</style>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
+        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div style={{fontSize:18,fontWeight:700,color:accent,marginBottom:10}}>Work Schedule</div>
+
+        {/* Store hours */}
+        <div style={{display:"flex",gap:6,marginBottom:12,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+          {[
+            {days:"Sun",hours:"8 AM – 1 PM",  color:"#7c83fd"},
+            {days:"Mon – Thu",hours:"8 AM – 6:30 PM",color:isDark?"#4aaa4a":"#2a7a2a"},
+            {days:"Fri – Sat",hours:"8 AM – 7:30 PM",color:"#e67e22"},
+          ].map(({days,hours,color})=>(
+            <div key={days} style={{flexShrink:0,background:isDark?"rgba(255,255,255,0.04)":"rgba(0,0,0,0.04)",border:`1px solid ${isDark?"rgba(255,255,255,0.08)":"rgba(0,0,0,0.08)"}`,borderRadius:10,padding:"7px 10px"}}>
+              <div style={{fontSize:9,fontWeight:700,color:color,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:2}}>{days}</div>
+              <div style={{fontSize:11,fontWeight:600,color:text,whiteSpace:"nowrap"}}>{hours}</div>
+            </div>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          <button onClick={()=>setMonth(m=>(m+11)%12)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:text,fontSize:16,fontFamily:"inherit",flexShrink:0}}>‹</button>
+          <div style={{flex:1,display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+            {MONTH_NAMES.map((m,i)=>(
+              <button key={i} onClick={()=>setMonth(i)} style={{flexShrink:0,padding:"5px 10px",borderRadius:20,border:`1px solid ${i===month?accent:border}`,background:i===month?accent:"transparent",color:i===month?"#fff":sub,fontSize:11,fontWeight:i===month?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>
+                {m.slice(0,3)}
+              </button>
+            ))}
+          </div>
+          <button onClick={()=>setMonth(m=>(m+1)%12)} style={{background:isDark?"#1a1f2e":"#e0e0d0",border:`1px solid ${border}`,borderRadius:8,width:32,height:32,display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",color:text,fontSize:16,fontFamily:"inherit",flexShrink:0}}>›</button>
+        </div>
+      </div>
+      <div style={{padding:"12px 10px"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:2,marginBottom:4}}>
+          {DAY_NAMES.map(d=>(
+            <div key={d} style={{textAlign:"center",fontSize:10,fontWeight:700,color:sub,letterSpacing:"0.04em",padding:"4px 0",textTransform:"uppercase"}}>{d}</div>
+          ))}
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(7, 1fr)",gap:3,animation:"fadeIn 0.3s ease"}}>
+          {cells.map((day,i)=>{
+            if(!day) return <div key={`e${i}`}/>;
+            const sh=dayShifts(day);
+            const names=[...new Set(sh.map(s=>s.name.trim()).filter(Boolean))];
+            const isToday=now.getFullYear()===currentYear&&month===now.getMonth()&&day===now.getDate();
+            return(
+              <div key={day} className="cal-day" onClick={()=>setFocusDay(day)}
+                style={{background:card,border:`1px solid ${isToday?accent:border}`,borderRadius:10,padding:"5px 3px",minHeight:62,cursor:"pointer",position:"relative",boxShadow:isToday?`0 0 0 1.5px ${accent}44`:"none"}}>
+                <div style={{fontSize:12,fontWeight:isToday?700:400,color:isToday?accent:text,marginBottom:3,textAlign:"center",lineHeight:1}}>{day}</div>
+                <div style={{display:"flex",flexDirection:"column",gap:2}}>
+                  {names.slice(0,3).map((name,ni)=>(
+                    <div key={ni} style={{fontSize:9,fontWeight:600,borderRadius:3,padding:"1px 4px",background:nameColor(name,isDark?25:80),color:nameColor(name,isDark?75:20),whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>{name}</div>
+                  ))}
+                  {names.length>3&&<div style={{fontSize:8,color:sub,textAlign:"center"}}>+{names.length-3}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Monthly earnings summary */}
+        {Object.keys(earnings).length>0&&(
+          <div style={{marginTop:18,background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,animation:"fadeUp 0.3s ease"}}>
+            <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10,fontWeight:700}}>{MONTH_NAMES[month]} Earnings — before tax</div>
+            {Object.entries(earnings).map(([name,hrs])=>(
+              <div key={name} style={{display:"flex",alignItems:"center",gap:10,marginBottom:8}}>
+                <div style={{width:28,height:28,borderRadius:"50%",background:nameColor(name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                  <span style={{fontSize:11,fontWeight:700,color:nameColor(name,isDark?80:20)}}>{name[0]?.toUpperCase()}</span>
+                </div>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:text}}>{name}</div>
+                  <div style={{fontSize:11,color:sub}}>{hrs.toFixed(1)} hrs</div>
+                </div>
+                <div style={{fontSize:15,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(hrs*HOURLY_RATE).toFixed(2)}</div>
+              </div>
+            ))}
+            <div style={{height:1,background:border,margin:"10px 0"}}/>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:12,color:sub}}>Total payroll</span>
+              <span style={{fontSize:14,fontWeight:700,color:isDark?"#4aaa4a":"#2a7a2a"}}>${(Object.values(earnings).reduce((a,h)=>a+h,0)*HOURLY_RATE).toFixed(2)}</span>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+// ── CashPage ──────────────────────────────────────────────────────────────────
+const DEFAULT_TAX_RATE=0.0323;
+async function fetchTaxRate(){
+  const {data}=await sb.from("app_settings").select("value").eq("key","tax_rate").single();
+  return data?parseFloat(data.value):DEFAULT_TAX_RATE;
+}
+async function saveTaxRate(r){
+  await sb.from("app_settings").upsert({key:"tax_rate",value:String(r)},{onConflict:"key"});
+}
+const DENOMINATIONS=[
+  {label:"Pennies",     value:0.01},
+  {label:"Nickels",     value:0.05},
+  {label:"Dimes",       value:0.10},
+  {label:"Quarters",    value:0.25},
+  {label:"Half Dollars",value:0.50},
+  {label:"$1 Coins",   value:1.00},
+  {label:"$1 Bills",   value:1.00},
+  {label:"$2 Bills",   value:2.00},
+  {label:"$5 Bills",   value:5.00},
+  {label:"$10 Bills",  value:10.00},
+  {label:"$20 Bills",  value:20.00},
+  {label:"$50 Bills",  value:50.00},
+  {label:"$100 Bills", value:100.00},
+];
+
+function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
+  const [tab,setTab]=useState("calc");
+  const [display,setDisplay]=useState("0");
+  const [prev,setPrev]=useState(null);
+  const [op,setOp]=useState(null);
+  const [fresh,setFresh]=useState(true);
+  const [counts,setCounts]=useState(Object.fromEntries(DENOMINATIONS.map((_,i)=>[i,0])));
+  const [taxInput,setTaxInput]=useState("");
+  const [taxMode,setTaxMode]=useState("add");
+  const [changeTotal,setChangeTotal]=useState("");
+  const [changeGiven,setChangeGiven]=useState("");
+
+  const bg=isDark?"#080b12":"#f0f0e8";
+  const card=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const accent="#f0c040";
+
+  function calcPress(val){
+    if(val==="C"){setDisplay("0");setPrev(null);setOp(null);setFresh(true);return;}
+    if(val==="±"){setDisplay(d=>String(-parseFloat(d)));return;}
+    if(val==="%"){setDisplay(d=>String(parseFloat(d)/100));return;}
+    if(val==="⌫"){setDisplay(d=>d.length>1?d.slice(0,-1):"0");return;}
+    if(["+","-","×","÷"].includes(val)){setPrev(parseFloat(display));setOp(val);setFresh(true);return;}
+    if(val==="="){
+      if(op&&prev!=null){
+        const cur=parseFloat(display);
+        const res=op==="+"?prev+cur:op==="-"?prev-cur:op==="×"?prev*cur:op==="÷"&&cur!==0?prev/cur:cur;
+        setDisplay(String(parseFloat(res.toFixed(10))));setPrev(null);setOp(null);setFresh(true);
+      }
+      return;
+    }
+    if(val==="."){
+      if(fresh){setDisplay("0.");setFresh(false);}
+      else if(!display.includes("."))setDisplay(d=>d+".");
+      return;
+    }
+    if(fresh){setDisplay(val);setFresh(false);}
+    else setDisplay(d=>d==="0"?val:d+val);
+  }
+
+  const calcRows=[["C","±","%","÷"],["7","8","9","×"],["4","5","6","-"],["1","2","3","+"],["⌫","0",".","="]];
+  const cashTotal=DENOMINATIONS.reduce((sum,d,i)=>sum+(counts[i]||0)*d.value,0);
+  const taxAmt=taxInput?parseFloat(taxInput)*taxRate:0;
+  const taxTotal=taxInput?parseFloat(taxInput)+(taxMode==="add"?taxAmt:-taxAmt):0;
+
+  return(
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+      <style>{`
+        @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        .calc-btn{transition:transform 0.08s ease;}
+        .calc-btn:active{transform:scale(0.92);}
+      `}</style>
+      <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 16px 14px"}}>
+        <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div style={{fontSize:20,fontWeight:700,color:accent,marginBottom:12}}>Cash Tools</div>
+        <div style={{display:"flex",gap:6,overflowX:"auto",scrollbarWidth:"none",paddingBottom:2}}>
+          {[{id:"calc",label:"Calculator"},{id:"change",label:"Change"},{id:"cash",label:"Cash Counter"},{id:"tax",label:"Tax"}].map(t=>(
+            <button key={t.id} onClick={()=>setTab(t.id)} style={{flexShrink:0,padding:"8px 12px",borderRadius:10,border:`1px solid ${tab===t.id?accent:border}`,background:tab===t.id?accent:"transparent",color:tab===t.id?"#0f1117":sub,fontSize:12,fontWeight:tab===t.id?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s",whiteSpace:"nowrap"}}>{t.label}</button>
+          ))}
+        </div>
+      </div>
+      <div style={{padding:"16px"}}>
+
+        {tab==="calc"&&(
+          <div style={{animation:"fadeUp 0.2s ease"}}>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:16,padding:"20px 20px 14px",marginBottom:12,textAlign:"right"}}>
+              {op&&<div style={{fontSize:12,color:sub,marginBottom:2}}>{prev} {op}</div>}
+              <div style={{fontSize:48,fontWeight:300,color:text,lineHeight:1,wordBreak:"break-all",minHeight:56}}>
+                {display.length>10?parseFloat(display).toExponential(4):display}
+              </div>
+            </div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:8}}>
+              {calcRows.flat().map(btn=>{
+                const isOp=["+","-","×","÷"].includes(btn);
+                const isEq=btn==="=";
+                const isFn=["C","±","%","⌫"].includes(btn);
+                return(
+                  <button key={btn} className="calc-btn" onClick={()=>calcPress(btn)} style={{
+                    padding:"18px 0",borderRadius:14,border:"none",cursor:"pointer",
+                    fontSize:isOp||isEq?22:18,fontWeight:isOp||isEq?700:400,fontFamily:"inherit",
+                    background:isEq?accent:isOp?`${accent}22`:isFn?isDark?"#1e2a3a":"#e8e0d0":card,
+                    color:isEq?"#0f1117":isOp?accent:text,
+                    border:`1px solid ${isEq?accent:isOp?`${accent}44`:border}`,
+                    boxShadow:isEq?`0 4px 16px ${accent}44`:"none",
+                  }}>{btn}</button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {tab==="cash"&&(
+          <div style={{animation:"fadeUp 0.2s ease"}}>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:"16px 18px",marginBottom:14,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div>
+                <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:2}}>Total Cash</div>
+                <div style={{fontSize:36,fontWeight:700,color:accent}}>${cashTotal.toFixed(2)}</div>
+              </div>
+              <button onClick={()=>setCounts(Object.fromEntries(DENOMINATIONS.map((_,i)=>[i,0])))} style={{padding:"8px 14px",background:"transparent",border:`1px solid ${border}`,borderRadius:10,color:sub,fontSize:12,cursor:"pointer",fontFamily:"inherit"}}>Clear All</button>
+            </div>
+            {DENOMINATIONS.map((d,i)=>(
+              <div key={i} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:"10px 14px",marginBottom:8,display:"flex",alignItems:"center",gap:10}}>
+                <div style={{flex:1}}>
+                  <div style={{fontSize:13,fontWeight:600,color:text}}>{d.label}</div>
+                  <div style={{fontSize:11,color:sub}}>${d.value.toFixed(2)} each · <span style={{color:accent,fontWeight:600}}>${((counts[i]||0)*d.value).toFixed(2)}</span></div>
+                </div>
+                <div style={{display:"flex",alignItems:"center",gap:6}}>
+                  <button onClick={()=>setCounts(c=>({...c,[i]:Math.max(0,(c[i]||0)-1)}))} style={{width:30,height:30,borderRadius:8,border:`1px solid ${border}`,background:"transparent",color:text,fontSize:18,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center"}}>-</button>
+                  <input type="number" min="0" value={counts[i]||0} onChange={e=>setCounts(c=>({...c,[i]:Math.max(0,parseInt(e.target.value)||0)}))} style={{width:44,textAlign:"center",background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"6px 4px",color:text,fontSize:14,fontFamily:"inherit"}}/>
+                  <button onClick={()=>setCounts(c=>({...c,[i]:(c[i]||0)+1}))} style={{width:30,height:30,borderRadius:8,border:`1px solid ${accent}44`,background:`${accent}11`,color:accent,fontSize:18,cursor:"pointer",fontFamily:"inherit",display:"flex",alignItems:"center",justifyContent:"center"}}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab==="tax"&&(
+          <div style={{animation:"fadeUp 0.2s ease"}}>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:12}}>
+              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:4}}>Tax Rate</div>
+              <div style={{fontSize:28,fontWeight:700,color:accent}}>{(taxRate*100).toFixed(2)}%</div>
+              <div style={{fontSize:11,color:sub,marginTop:2}}>Current sales tax rate</div>
+            </div>
+            <div style={{display:"flex",gap:8,marginBottom:14}}>
+              {[{id:"add",label:"Add Tax"},{id:"remove",label:"Remove Tax"}].map(m=>(
+                <button key={m.id} onClick={()=>setTaxMode(m.id)} style={{flex:1,padding:"9px 6px",borderRadius:10,border:`1px solid ${taxMode===m.id?accent:border}`,background:taxMode===m.id?`${accent}22`:"transparent",color:taxMode===m.id?accent:sub,fontSize:12,fontWeight:taxMode===m.id?700:400,cursor:"pointer",fontFamily:"inherit",transition:"all 0.15s"}}>
+                  {taxMode===m.id&&m.id==="add"?"+ Add Tax to Price":"- Remove Tax from Total"}
+                  {taxMode!==m.id&&m.label}
+                </button>
+              ))}
+            </div>
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:12}}>
+              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:8}}>{taxMode==="add"?"Pre-Tax Price ($)":"Total with Tax ($)"}</div>
+              <div style={{display:"flex",alignItems:"center",gap:10}}>
+                <span style={{fontSize:22,color:sub}}>$</span>
+                <input type="number" min="0" step="0.01" value={taxInput} onChange={e=>setTaxInput(e.target.value)} placeholder="0.00" style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:24,fontFamily:"inherit",fontWeight:300}}/>
+              </div>
+            </div>
+            {taxInput&&!isNaN(parseFloat(taxInput))&&(
+              <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:12,animation:"fadeUp 0.2s ease"}}>
+                {[
+                  {label:taxMode==="add"?"Pre-Tax Amount":"Total (with tax)",value:`$${parseFloat(taxInput).toFixed(2)}`,big:false},
+                  {label:"Tax (3.23%)",value:`$${Math.abs(taxAmt).toFixed(2)}`,big:false},
+                  {label:taxMode==="add"?"Total with Tax":"Pre-Tax Amount",value:`$${Math.abs(taxTotal).toFixed(2)}`,big:true},
+                ].map((row,i)=>(
+                  <div key={i} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:i<2?`1px solid ${border}`:"none"}}>
+                    <span style={{fontSize:13,color:row.big?text:sub}}>{row.label}</span>
+                    <span style={{fontSize:row.big?22:16,fontWeight:row.big?700:400,color:row.big?accent:text}}>{row.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16}}>
+              <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.08em",marginBottom:10}}>Quick Reference</div>
+              {[1,5,10,20,50,100].map(amt=>(
+                <div key={amt} onClick={()=>setTaxInput(String(amt))} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${border}`,cursor:"pointer"}}>
+                  <span style={{fontSize:13,color:sub}}>${amt}.00</span>
+                  <span style={{fontSize:13,color:text}}>+${(amt*taxRate).toFixed(2)} tax</span>
+                  <span style={{fontSize:13,fontWeight:700,color:accent}}>${(amt*(1+taxRate)).toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ── Change Calculator ── */}
+        {tab==="change"&&(
+          <div style={{animation:"fadeUp 0.2s ease"}}>
+            {/* Inputs */}
+            <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,padding:16,marginBottom:12}}>
+              <div style={{marginBottom:14}}>
+                <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Sale Total ($)</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:20,color:sub}}>$</span>
+                  <input type="number" min="0" step="0.01" value={changeTotal}
+                    onChange={e=>setChangeTotal(e.target.value)}
+                    placeholder="0.00"
+                    style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
+                </div>
+              </div>
+              <div>
+                <div style={{fontSize:11,color:sub,textTransform:"uppercase",letterSpacing:"0.06em",marginBottom:6}}>Amount Given ($)</div>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:20,color:sub}}>$</span>
+                  <input type="number" min="0" step="0.01" value={changeGiven}
+                    onChange={e=>setChangeGiven(e.target.value)}
+                    placeholder="0.00"
+                    style={{flex:1,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:10,padding:"12px 14px",color:text,fontSize:22,fontFamily:"inherit",fontWeight:300}}/>
+                </div>
+              </div>
+            </div>
+
+            {/* Quick "given" buttons */}
+            <div style={{display:"flex",gap:6,flexWrap:"wrap",marginBottom:14}}>
+              {[1,5,10,20,50,100].map(amt=>(
+                <button key={amt} onClick={()=>setChangeGiven(String(amt))}
+                  style={{padding:"7px 12px",borderRadius:8,border:`1px solid ${border}`,background:parseFloat(changeGiven)===amt?accent:"transparent",color:parseFloat(changeGiven)===amt?"#0f1117":sub,fontSize:12,fontWeight:600,cursor:"pointer",fontFamily:"inherit",transition:"all 0.12s"}}>
+                  ${amt}
+                </button>
+              ))}
+            </div>
+
+            {/* Result */}
+            {(()=>{
+              const total=parseFloat(changeTotal);
+              const given=parseFloat(changeGiven);
+              if(!changeTotal||!changeGiven||isNaN(total)||isNaN(given)) return(
+                <div style={{textAlign:"center",color:sub,padding:"30px 20px",background:card,border:`1px solid ${border}`,borderRadius:14}}>
+                  <div style={{fontSize:28,marginBottom:8}}>💰</div>
+                  <div style={{fontSize:13}}>Enter the sale total and amount given</div>
+                </div>
+              );
+              if(given<total) return(
+                <div style={{background:"#2e1a1a",border:"1px solid #5a2a2a",borderRadius:14,padding:16,textAlign:"center"}}>
+                  <div style={{fontSize:16,fontWeight:700,color:"#e74c3c",marginBottom:4}}>Not Enough</div>
+                  <div style={{fontSize:13,color:"#e07070"}}>Customer is ${(total-given).toFixed(2)} short</div>
+                </div>
+              );
+              const changeDue=Math.round((given-total)*100)/100;
+              if(changeDue===0) return(
+                <div style={{background:isDark?"#0a1e0a":"#f0faf0",border:`1px solid ${isDark?"#1a4a1a":"#b0d0b0"}`,borderRadius:14,padding:16,textAlign:"center"}}>
+                  <div style={{fontSize:16,fontWeight:700,color:"#27ae60",marginBottom:4}}>✓ Exact Change</div>
+                  <div style={{fontSize:13,color:sub}}>No change needed</div>
+                </div>
+              );
+              // Break into denominations (largest first, prefer fewer bills)
+              const breakDown=[
+                {label:"$100 Bills", value:100.00},
+                {label:"$50 Bills",  value:50.00},
+                {label:"$20 Bills",  value:20.00},
+                {label:"$10 Bills",  value:10.00},
+                {label:"$5 Bills",   value:5.00},
+                {label:"$1 Bills",   value:1.00},
+                {label:"Quarters",   value:0.25},
+                {label:"Dimes",      value:0.10},
+                {label:"Nickels",    value:0.05},
+                {label:"Pennies",    value:0.01},
+              ];
+              const result=[];
+              let remaining=Math.round(changeDue*100);
+              breakDown.forEach(d=>{
+                const count=Math.floor(remaining/Math.round(d.value*100));
+                if(count>0){
+                  result.push({...d,count});
+                  remaining-=count*Math.round(d.value*100);
+                }
+              });
+              return(
+                <div style={{background:card,border:`1px solid ${border}`,borderRadius:14,overflow:"hidden",animation:"fadeUp 0.2s ease"}}>
+                  {/* Change due header */}
+                  <div style={{background:`${accent}18`,borderBottom:`1px solid ${accent}33`,padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div style={{fontSize:13,color:sub}}>Change Due</div>
+                    <div style={{fontSize:32,fontWeight:700,color:accent}}>${changeDue.toFixed(2)}</div>
+                  </div>
+                  {/* Breakdown */}
+                  {result.map((d,i)=>(
+                    <div key={i} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 18px",borderBottom:i<result.length-1?`1px solid ${border}`:"none"}}>
+                      <div style={{display:"flex",alignItems:"center",gap:10}}>
+                        <div style={{width:36,height:36,borderRadius:10,background:`${accent}18`,border:`1px solid ${accent}33`,display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+                          <span style={{fontSize:14,fontWeight:700,color:accent}}>{d.count}</span>
+                        </div>
+                        <span style={{fontSize:14,color:text}}>{d.label}</span>
+                      </div>
+                      <span style={{fontSize:13,color:sub}}>${(d.count*d.value).toFixed(2)}</span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })()}
+
+            {/* Clear button */}
+            {(changeTotal||changeGiven)&&(
+              <button onClick={()=>{setChangeTotal("");setChangeGiven("");}}
+                style={{width:"100%",marginTop:12,padding:11,background:"transparent",border:`1px solid ${border}`,borderRadius:10,color:sub,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+                Clear
+              </button>
+            )}
+          </div>
+        )}
+
+      </div>
+    </div>
+  );
+}
+
+function BottomNav({page,setPage,activeCategoryTheme,isDark}){
+  const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
+  const borderColor=page==="dev"?DT.cardBorder:isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
+  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
+  return(
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,display:"flex",zIndex:150,transition:"background 0.3s"}}>
+      {tabs.map(tab=>{
+        const isActive=page===tab.id;
+        const accentColor=tab.id==="dev"?DT.accent:activeCategoryTheme?.accent||"#f0c040";
+        const textColor=isActive?accentColor:isDark?"#3a4a60":"#909080";
+        return(
+          <button key={tab.id} onClick={()=>setPage(tab.id)} style={{flex:1,padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",fontFamily:tab.id==="dev"?"'Courier New',monospace":"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:isActive?1:0.5,transition:"opacity 0.2s"}}>
+            <span style={{fontSize:20}}>{tab.icon}</span>
+            <span style={{fontSize:10,fontWeight:700,letterSpacing:tab.id==="dev"?"0.08em":"0.04em",color:textColor,textTransform:"uppercase"}}>{tab.id==="dev"?"[DEV]":tab.label}</span>
+            {isActive&&<div style={{width:20,height:2,borderRadius:2,background:accentColor,marginTop:1}}/>}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// ── Root App ──────────────────────────────────────────────────────────────────
+export default function App(){
+  const [page,setPage]=useState("pricing");
+  const [selectedCategory,setSelectedCategory]=useState(null);
+  const [scrollToItem,setScrollToItem]=useState(null);
+  const [items,setItems]=useState([]);
+  const [isDev,setIsDev]=useState(false);
+  const [isManager,setIsManager]=useState(false);
+  const [showPinModal,setShowPinModal]=useState(false);
+  const [pinInput,setPinInput]=useState("");
+  const [pinError,setPinError]=useState(false);
+  const [isDark,setIsDark]=useState(()=>loadTheme()==="dark");
+  const [auditLog,setAuditLog]=useState([]);
+  const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
+  const [loading,setLoading]=useState(true);
+
+  // Load items and settings from Supabase on mount
+  useEffect(()=>{
+    async function init(){
+      try{
+        // Load items
+        const {data:itemData}=await sb.from("items").select("*").order("name");
+        if(itemData&&itemData.length>0){
+          setItems(itemData.map(row=>({
+            id:row.id,
+            name:row.name,
+            category:row.category,
+            subcategory:row.subcategory||"",
+            price:parseFloat(row.price),
+            location:row.location||"",
+            notes:row.notes||"",
+            inventory:row.inventory??null,
+            outOfStock:row.out_of_stock||false,
+            mapZone:row.map_zone||null,
+            expiryDate:row.expiry_date||"",
+            packSize:row.pack_size||null,
+            containerType:row.container_type||null,
+            deposit:row.deposit!=null?parseFloat(row.deposit):null,
+            wineType:row.wine_type||null,
+          })));
+        }
+        // Load tax rate
+        const rate=await fetchTaxRate();
+        setTaxRate(rate);
+      }catch(e){console.error("Init error:",e);}
+      finally{setLoading(false);}
+    }
+    init();
+  },[]);
+  // Lifted welcome refs so they survive navigation back to home
+  const hasShownWelcomeRef=useRef({dev:false,manager:false});
+
+  const MANAGER_PIN="3018",DEV_PIN="130654";
+
+  function addAuditEntry(entry){
+    setAuditLog(prev=>[entry,...prev].slice(0,5));
+  }
+
+  function submitPin(){
+    if(pinInput===MANAGER_PIN||pinInput===DEV_PIN){
+      setIsManager(true);
+      if(pinInput===DEV_PIN)setIsDev(true);
+      setShowPinModal(false);setPinInput("");setPinError(false);
+    } else {setPinError(true);setPinInput("");}
+  }
+  function logout(){
+    setIsManager(false);setIsDev(false);
+    hasShownWelcomeRef.current={dev:false,manager:false};
+  }
+  function toggleTheme(){setIsDark(v=>{try{localStorage.setItem(THEME_KEY,v?"light":"dark");}catch{}return!v;});}
+
+  const activeCatTheme=selectedCategory?.theme||null;
+  const bugsT={accent:"#7c83fd",accentText:"#fff",card:"#0f0f22",border:"#1e1e40",sub:"#505080",inputBg:"#0a0a18",inputBorder:"#1e1e40"};
+
+  function handlePageChange(p){setPage(p);if(p!=="pricing")setSelectedCategory(null);}
+
+  return(
+    <div style={{maxWidth:480,margin:"0 auto",position:"relative"}}>
+      {/* Loading screen */}
+      {loading&&(
+        <div style={{position:"fixed",inset:0,background:"#080b12",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
+          <div style={{fontSize:32}}>🏪</div>
+          <div style={{fontSize:16,fontWeight:700,color:"#f0c040",fontFamily:"'Georgia',serif"}}>Gil's Grocery</div>
+          <div style={{fontSize:12,color:"#3a4a60",letterSpacing:"0.1em",textTransform:"uppercase"}}>Loading…</div>
+        </div>
+      )}
+      {/* PIN Modal */}
+      {showPinModal&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
+          <div style={{background:"#1a1f2e",border:"1px solid #2a3050",borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:32,marginBottom:8}}>🔒</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginBottom:6}}>Manager Sign In</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>Enter your PIN to unlock editing</div>
+            <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
+              onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
+              onKeyDown={e=>e.key==="Enter"&&submitPin()}
+              placeholder="••••"
+              style={{width:"100%",background:"#0f1117",border:`2px solid ${pinError?"#e74c3c":"#2e3450"}`,borderRadius:10,padding:"14px",color:"#f0f0f0",fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}/>
+            {pinError&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
+            {!pinError&&<div style={{height:20,marginBottom:12}}/>}
+            <div style={{display:"flex",gap:10}}>
+              <button onClick={()=>{setShowPinModal(false);setPinInput("");setPinError(false);}} style={{flex:1,padding:12,background:"transparent",border:"1px solid #2e3450",borderRadius:10,color:"#6b7280",fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
+              <button onClick={submitPin} style={{flex:2,padding:12,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {page==="pricing"&&(
+        selectedCategory
+          ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} onRequireManager={()=>setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem}/>
+          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef}/>
+      )}
+      {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)}/>}
+      {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
+      {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} onRequireManager={()=>setShowPinModal(true)}/></div>}
+      {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}}/>}      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
     </div>
   );
 }
