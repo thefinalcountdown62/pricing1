@@ -1504,6 +1504,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
   const [bugForm,setBugForm]=useState({title:"",description:"",severity:"Medium",status:"Open"});
   const [taxRateInput,setTaxRateInput]=useState(String((taxRate*100).toFixed(2)));
   const [taxRateSaved,setTaxRateSaved]=useState(false);
+  const [confirmDisable,setConfirmDisable]=useState(false);
   const [showNotifForm,setShowNotifForm]=useState(false);
   const [notifMsg,setNotifMsg]=useState("");
   const [notifColor,setNotifColor]=useState("blue");
@@ -1542,7 +1543,24 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             <span style={{fontSize:10,padding:"3px 8px",background:managerDisabled?`${DT.red}15`:`${DT.green}15`,color:managerDisabled?DT.red:DT.green,border:`1px solid ${managerDisabled?DT.red+"44":DT.green+"44"}`,borderRadius:4,letterSpacing:"0.06em"}}>{managerDisabled?"DISABLED":"ACTIVE"}</span>
           </div>
           {managerDisabled&&<div style={{fontSize:11,color:DT.red,marginBottom:12,padding:"8px 10px",background:"#ff446610",border:"1px solid #ff446630",borderRadius:6,letterSpacing:"0.05em"}}>// WARNING: Manager permissions currently DISABLED</div>}
-          <button onClick={toggleManagerDisabled} style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:10,transition:"all 0.3s"}}>
+
+          {/* Confirm modal */}
+          {confirmDisable&&(
+            <div style={{background:"#1a0a0a",border:"1px solid #ff446644",borderRadius:8,padding:14,marginBottom:10,animation:"popIn 0.2s ease"}}>
+              <div style={{fontSize:12,color:DT.red,fontWeight:700,marginBottom:6,letterSpacing:"0.06em"}}>// CONFIRM: DISABLE_MANAGERS?</div>
+              <div style={{fontSize:11,color:DT.subText,marginBottom:10,lineHeight:1.5}}>
+                This will immediately block all manager PIN logins. You can re-enable at any time from this page, or via the Supabase SQL editor:<br/>
+                <span style={{color:DT.accent,fontFamily:"'Courier New',monospace",fontSize:10}}>update app_settings set value='false' where key='manager_disabled';</span>
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <button onClick={()=>setConfirmDisable(false)} style={{flex:1,padding:"8px",background:"transparent",border:`1px solid ${DT.cardBorder}`,borderRadius:6,color:DT.subText,fontSize:11,cursor:"pointer",fontFamily:"'Courier New',monospace"}}>CANCEL</button>
+                <button onClick={async()=>{setConfirmDisable(false);await toggleManagerDisabled();}} style={{flex:2,padding:"8px",background:"#ff446618",border:"1px solid #ff446644",borderRadius:6,color:DT.red,fontSize:11,fontWeight:700,cursor:"pointer",fontFamily:"'Courier New',monospace",letterSpacing:"0.06em"}}>⊘ CONFIRM_DISABLE →</button>
+              </div>
+            </div>
+          )}
+
+          <button onClick={()=>managerDisabled?toggleManagerDisabled():setConfirmDisable(true)}
+            style={{width:"100%",padding:"10px",background:managerDisabled?`${DT.green}15`:"#ff446615",border:`1px solid ${managerDisabled?DT.green+"44":"#ff446644"}`,borderRadius:6,color:managerDisabled?DT.green:DT.red,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.06em",marginBottom:10,transition:"all 0.3s"}}>
             {managerDisabled?"✓ ENABLE_MANAGERS →":"⊘ DISABLE_MANAGERS →"}
           </button>
           <button style={{width:"100%",padding:"10px",background:"transparent",border:`1px solid ${DT.accent}44`,borderRadius:6,color:DT.accent,fontSize:12,cursor:"pointer",fontFamily:"inherit",letterSpacing:"0.08em"}}>CHANGE_PIN →</button>
@@ -2771,22 +2789,22 @@ export default function App(){
       {/* PIN Modal */}
       {showPinModal&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:"#1a1f2e",border:`1px solid ${managerDisabled&&!isDev?"#e74c3c44":"#2a3050"}`,borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"modalIn 0.25s ease"}}>
-            <div style={{fontSize:32,marginBottom:8}}>{managerDisabled&&!isDev?"🚫":"🔒"}</div>
-            <div style={{fontSize:18,fontWeight:700,color:managerDisabled&&!isDev?"#e74c3c":"#f0f0f0",marginBottom:6}}>{managerDisabled&&!isDev?"Access Disabled":"Manager Sign In"}</div>
-            <div style={{fontSize:13,color:"#6b7280",marginBottom:20}}>{managerDisabled&&!isDev?"Manager permissions are temporarily disabled by the developer.":"Enter your PIN to unlock editing"}</div>
-            {!(managerDisabled&&!isDev)&&<>
-              <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
-                onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
-                onKeyDown={e=>e.key==="Enter"&&submitPin()}
-                placeholder="••••"
-                style={{width:"100%",background:"#0f1117",border:`2px solid ${pinError?"#e74c3c":"#2e3450"}`,borderRadius:10,padding:"14px",color:"#f0f0f0",fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}/>
-              {pinError&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
-              {!pinError&&<div style={{height:20,marginBottom:12}}/>}
-            </>}
+          <div style={{background:"#1a1f2e",border:`1px solid ${managerDisabled?"#e74c3c44":"#2a3050"}`,borderRadius:16,padding:28,width:"100%",maxWidth:300,textAlign:"center",animation:"modalIn 0.25s ease"}}>
+            <div style={{fontSize:32,marginBottom:8}}>{managerDisabled?"🔒":"🔒"}</div>
+            <div style={{fontSize:18,fontWeight:700,color:"#f0f0f0",marginBottom:6}}>Sign In</div>
+            <div style={{fontSize:13,color:"#6b7280",marginBottom:4}}>Enter your PIN to continue</div>
+            {managerDisabled&&<div style={{fontSize:11,color:"#e74c3c",marginBottom:12,padding:"6px 10px",background:"#e74c3c11",border:"1px solid #e74c3c33",borderRadius:8}}>Manager access is temporarily disabled</div>}
+            {!managerDisabled&&<div style={{height:12,marginBottom:8}}/>}
+            <input type="password" inputMode="numeric" maxLength={6} value={pinInput} autoFocus
+              onChange={e=>{setPinInput(e.target.value);setPinError(false);}}
+              onKeyDown={e=>e.key==="Enter"&&submitPin()}
+              placeholder="••••"
+              style={{width:"100%",background:"#0f1117",border:`2px solid ${pinError?"#e74c3c":"#2e3450"}`,borderRadius:10,padding:"14px",color:"#f0f0f0",fontSize:28,fontFamily:"inherit",boxSizing:"border-box",textAlign:"center",letterSpacing:"0.3em",marginBottom:8}}/>
+            {pinError&&<div style={{fontSize:12,color:"#e74c3c",marginBottom:12}}>Incorrect PIN, try again</div>}
+            {!pinError&&<div style={{height:20,marginBottom:12}}/>}
             <div style={{display:"flex",gap:10}}>
               <button onClick={()=>{setShowPinModal(false);setPinInput("");setPinError(false);}} style={{flex:1,padding:12,background:"transparent",border:"1px solid #2e3450",borderRadius:10,color:"#6b7280",fontSize:15,cursor:"pointer",fontFamily:"inherit"}}>Cancel</button>
-              {!(managerDisabled&&!isDev)&&<button onClick={submitPin} style={{flex:2,padding:12,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>}
+              <button onClick={submitPin} style={{flex:2,padding:12,background:"#f0c040",border:"none",borderRadius:10,color:"#0f1117",fontSize:15,fontWeight:700,cursor:"pointer",fontFamily:"inherit"}}>Unlock</button>
             </div>
           </div>
         </div>
