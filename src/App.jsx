@@ -656,7 +656,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
   }
 
   return(
-    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease",paddingTop:bannerOffset}}>
+    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:bannerOffset}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -843,7 +843,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
     const sub=isDark?"#806040":"#907040";
     const accent="#f0c040";
     return(
-      <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110}}>
         <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}`}</style>
         <div style={{background:isDark?"linear-gradient(160deg,#1e1800,#120e00)":"linear-gradient(160deg,#f8f0c0,#fffff0)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:0}}>
@@ -1025,7 +1025,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
   const accentColor=baseT.accent;
 
   return(
-    <div style={{minHeight:"100vh",background:T.bg,color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,transition:"background 0.4s ease"}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease"}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -1732,7 +1732,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
             const actionColor=entry.action==="added"?DT.green:entry.action==="deleted"?DT.red:"#f0c040";
             const t=entry.timestamp instanceof Date?entry.timestamp:new Date(entry.timestamp);
             const timeStr=t?`${t.getHours().toString().padStart(2,"0")}:${t.getMinutes().toString().padStart(2,"0")}:${t.getSeconds().toString().padStart(2,"0")}`:"--:--:--";
-            const canUndo=entry.action==="edited"&&entry.snapshot;
+            const canUndo=entry.action==="edited"&&entry.snapshot&&entry.snapshot.id;
             return(
               <div key={entry.id} style={{background:DT.cardBg,border:`1px solid ${DT.cardBorder}`,borderRadius:8,padding:"12px 14px",marginBottom:8,borderLeft:`3px solid ${actionColor}`}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:4}}>
@@ -2690,14 +2690,22 @@ function SuggestionsPage({isDark,isManager}){
     setForm({title:"",description:"",category:"Feature"});setShowForm(false);
   }
 
+  function hasVoted(id){try{const v=JSON.parse(localStorage.getItem("voted_suggestions")||"[]");return v.includes(id);}catch{return false;}}
+  function markVoted(id){try{const v=JSON.parse(localStorage.getItem("voted_suggestions")||"[]");localStorage.setItem("voted_suggestions",JSON.stringify([...v,id]));}catch{}}
   async function vote(id){
+    if(hasVoted(id))return;
     const s=suggestions.find(s=>s.id===id);
     if(!s)return;
     await sb.from("suggestions").update({votes:(s.votes||0)+1}).eq("id",id);
     setSuggestions(prev=>prev.map(s=>s.id===id?{...s,votes:(s.votes||0)+1}:s));
+    markVoted(id);
+  }
+  async function deleteSuggestion(id){
+    await sb.from("suggestions").delete().eq("id",id);
+    setSuggestions(prev=>prev.filter(s=>s.id!==id));
   }
 
-  const cats=["Feature","Improvement","Bug","Other"];
+  const cats=["Feature","Improvement","Other"];
 
   return(
     <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
@@ -2737,9 +2745,9 @@ function SuggestionsPage({isDark,isManager}){
           return(
             <div key={s.id} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:"12px 14px",marginBottom:10,animation:`fadeUp 0.2s ease ${i*0.04}s both`}}>
               <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
-                <button onClick={()=>vote(s.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${border}`,borderRadius:8,padding:"6px 8px",cursor:"pointer",minWidth:36,flexShrink:0}}>
-                  <span style={{fontSize:12}}>▲</span>
-                  <span style={{fontSize:12,fontWeight:700,color:text}}>{s.votes||0}</span>
+                <button onClick={()=>vote(s.id)} disabled={hasVoted(s.id)} style={{display:"flex",flexDirection:"column",alignItems:"center",gap:2,background:hasVoted(s.id)?`${accent}18`:isDark?"#0a0f1e":"#f4f4f0",border:`1px solid ${hasVoted(s.id)?accent:border}`,borderRadius:8,padding:"6px 8px",cursor:hasVoted(s.id)?"default":"pointer",minWidth:36,flexShrink:0,transition:"all 0.15s"}}>
+                  <span style={{fontSize:12,color:hasVoted(s.id)?accent:"inherit"}}>▲</span>
+                  <span style={{fontSize:12,fontWeight:700,color:hasVoted(s.id)?accent:text}}>{s.votes||0}</span>
                 </button>
                 <div style={{flex:1}}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:3}}>
@@ -2749,6 +2757,7 @@ function SuggestionsPage({isDark,isManager}){
                   {s.description&&<div style={{fontSize:12,color:sub,lineHeight:1.4,marginBottom:3}}>{s.description}</div>}
                   <div style={{fontSize:10,color:sub}}>{s.created_at}</div>
                 </div>
+                {isDev&&<button onClick={()=>deleteSuggestion(s.id)} style={{background:"none",border:"none",color:sub,fontSize:14,cursor:"pointer",padding:4,flexShrink:0}}>🗑️</button>}
               </div>
             </div>
           );
@@ -2851,21 +2860,29 @@ function UpdateLogPage({isDark,isDev}){
 function BottomNav({page,setPage,activeCategoryTheme,isDark}){
   const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
   const borderColor=page==="dev"?DT.cardBorder:isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
-  const tabs=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"},{id:"suggestions",label:"Ideas",icon:"💡"},{id:"updates",label:"Updates",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
+  // Split into two rows of 4
+  const row1=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"}];
+  const row2=[{id:"suggestions",label:"Ideas",icon:"💡"},{id:"updates",label:"Updates",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
+  const allRows=[row1,row2];
+  function TabBtn({tab}){
+    const isActive=page===tab.id;
+    const accentColor=tab.id==="dev"?DT.accent:activeCategoryTheme?.accent||"#f0c040";
+    const textColor=isActive?accentColor:isDark?"#3a4a60":"#909080";
+    return(
+      <button onClick={()=>setPage(tab.id)} style={{flex:1,padding:"7px 0 8px",background:"none",border:"none",cursor:"pointer",fontFamily:tab.id==="dev"?"'Courier New',monospace":"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,opacity:isActive?1:0.45,transition:"opacity 0.2s"}}>
+        <span style={{fontSize:18}}>{tab.icon}</span>
+        <span style={{fontSize:9,fontWeight:700,letterSpacing:tab.id==="dev"?"0.08em":"0.03em",color:textColor,textTransform:"uppercase"}}>{tab.id==="dev"?"[DEV]":tab.label}</span>
+        {isActive&&<div style={{width:16,height:2,borderRadius:2,background:accentColor}}/>}
+      </button>
+    );
+  }
   return(
-    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,display:"flex",zIndex:150,transition:"background 0.3s",overflowX:"auto",scrollbarWidth:"none"}}>
-      {tabs.map(tab=>{
-        const isActive=page===tab.id;
-        const accentColor=tab.id==="dev"?DT.accent:activeCategoryTheme?.accent||"#f0c040";
-        const textColor=isActive?accentColor:isDark?"#3a4a60":"#909080";
-        return(
-          <button key={tab.id} onClick={()=>setPage(tab.id)} style={{flex:1,padding:"10px 0 12px",background:"none",border:"none",cursor:"pointer",fontFamily:tab.id==="dev"?"'Courier New',monospace":"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:3,opacity:isActive?1:0.5,transition:"opacity 0.2s"}}>
-            <span style={{fontSize:20}}>{tab.icon}</span>
-            <span style={{fontSize:10,fontWeight:700,letterSpacing:tab.id==="dev"?"0.08em":"0.04em",color:textColor,textTransform:"uppercase"}}>{tab.id==="dev"?"[DEV]":tab.label}</span>
-            {isActive&&<div style={{width:20,height:2,borderRadius:2,background:accentColor,marginTop:1}}/>}
-          </button>
-        );
-      })}
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,zIndex:150,transition:"background 0.3s"}}>
+      {allRows.map((row,ri)=>(
+        <div key={ri} style={{display:"flex",borderBottom:ri===0?`1px solid ${borderColor}`:"none"}}>
+          {row.map(tab=><TabBtn key={tab.id} tab={tab}/>)}
+        </div>
+      ))}
     </div>
   );
 }
@@ -2925,6 +2942,19 @@ export default function App(){
         } else if(storedYear===0){
           localStorage.setItem("shifts_year",String(thisYear));
         }
+        // Load audit log from Supabase (last 10, newest first)
+        const {data:auditData}=await sb.from("audit_log").select("*").order("created_at",{ascending:false}).limit(10);
+        if(auditData&&auditData.length>0){
+          setAuditLog(auditData.map(row=>({
+            id:row.id,action:row.action,itemName:row.item_name,
+            category:row.category,subcategory:row.subcategory,
+            price:row.price,details:row.details||"",
+            timestamp:new Date(row.created_at),
+            role:row.role,
+            snapshot:row.snapshot?JSON.parse(row.snapshot):null,
+            itemId:row.item_id,
+          })));
+        }
         // Load active notification
         const notif=await fetchActiveNotif();
         if(notif&&notif.expiresAt&&new Date(notif.expiresAt)>new Date()){
@@ -2942,8 +2972,42 @@ export default function App(){
 
   const MANAGER_PIN="3018",DEV_PIN="130654";
 
-  function addAuditEntry(entry){
-    setAuditLog(prev=>[entry,...prev].slice(0,10));
+  async function addAuditEntry(entry){
+    const snap=entry.snapshot?JSON.stringify({
+      id:entry.snapshot.id,name:entry.snapshot.name,category:entry.snapshot.category,
+      subcategory:entry.snapshot.subcategory,price:entry.snapshot.price,
+      location:entry.snapshot.location,notes:entry.snapshot.notes,
+      inventory:entry.snapshot.inventory,outOfStock:entry.snapshot.outOfStock,
+      mapZone:entry.snapshot.mapZone,expiryDate:entry.snapshot.expiryDate,
+      packSize:entry.snapshot.packSize,containerType:entry.snapshot.containerType,
+      deposit:entry.snapshot.deposit,wineType:entry.snapshot.wineType,
+      gilliesRecommendation:entry.snapshot.gilliesRecommendation,
+    }):null;
+    // Write to Supabase
+    const {data:newRow}=await sb.from("audit_log").insert({
+      action:entry.action,
+      item_name:entry.itemName,
+      category:entry.category,
+      subcategory:entry.subcategory,
+      price:entry.price,
+      details:entry.details||"",
+      role:entry.role,
+      snapshot:snap,
+      item_id:entry.itemId||null,
+      created_at:new Date().toISOString(),
+    }).select().single();
+    // Update local state
+    const localEntry={...entry,id:newRow?.id||entry.id,snapshot:entry.snapshot};
+    setAuditLog(prev=>[localEntry,...prev].slice(0,10));
+    // Auto-delete oldest if over 10 (keep storage lean)
+    sb.from("audit_log").select("id",{count:"exact"}).then(({count})=>{
+      if(count>10){
+        sb.from("audit_log").select("id").order("created_at",{ascending:true}).limit(count-10)
+          .then(({data:old})=>{
+            if(old&&old.length)sb.from("audit_log").delete().in("id",old.map(r=>r.id));
+          });
+      }
+    });
   }
 
   function submitPin(){
