@@ -293,6 +293,7 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
   return(
     <div style={{position:"relative",width:"100%",borderRadius:10,overflow:"hidden",background:"#080808",border:"1px solid rgba(255,255,255,0.07)"}}>
       <svg viewBox={`0 0 ${W} ${H}`} width="100%" style={{display:"block"}}>
+        <defs><style>{`@keyframes floorFlash{0%{opacity:1}40%{opacity:0.35}100%{opacity:1}}`}</style></defs>
         {/* Outer walls — red like the drawing */}
         <rect x={px(8)} y={py(7)} width={pw(88)} height={ph(89)} fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth={2}/>
         {/* Back room inner walls */}
@@ -318,7 +319,7 @@ function FloorPlan({pinZone,onSelectZone,accent,readonly=false}){
               <rect x={x} y={y} width={w} height={h} rx={3}
                 fill={isPin?`${accent}35`:isHov&&!readonly?`${zone.color}ff`:`${zone.color}cc`}
                 stroke={isPin?accent:isHov&&!readonly?"rgba(255,255,255,0.35)":"rgba(255,255,255,0.1)"} strokeWidth={isPin?1.5:0.8}/>
-              {isPin&&<rect x={x} y={y} width={w} height={h} rx={3} fill="none" stroke={accent} strokeWidth={1.5} opacity={0.9} filter={`drop-shadow(0 0 5px ${accent})`}/>}
+              {isPin&&<rect x={x} y={y} width={w} height={h} rx={3} fill="none" stroke={accent} strokeWidth={1.5} opacity={0.9} style={{animation:"floorFlash 0.35s ease"}} filter={`drop-shadow(0 0 5px ${accent})`}/>}
               {w>24&&h>12&&(
                 <text x={cx} y={cy} textAnchor="middle" dominantBaseline="middle"
                   fontSize={Math.min(9,Math.max(5.5,Math.min(w/(zone.label.length*0.62),h/2.2)))}
@@ -465,7 +466,7 @@ function ItemCard({item,T,onDelete,onToggle,onEdit,forceExpand=false}){
       {/* Animated expand section */}
       <div style={{display:"grid",gridTemplateRows:expanded?"1fr":"0fr",transition:"grid-template-rows 0.28s cubic-bezier(0.4,0,0.2,1)"}}>
         <div style={{overflow:"hidden"}}>
-          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,position:"relative",zIndex:2}} onClick={e=>e.stopPropagation()}>
+          <div style={{marginTop:12,paddingTop:12,borderTop:`1px solid ${T.border}`,position:"relative",zIndex:2,animation:"pageEnter 0.22s cubic-bezier(0.34,1.1,0.64,1)"}} onClick={e=>e.stopPropagation()}>
             {item.deposit>0&&<div style={{display:"flex",justifyContent:"space-between",marginBottom:10}}><span style={{fontSize:13,color:T.sub}}>Total w/ deposit:</span><span style={{fontSize:14,fontWeight:700,color:T.accent}}>${total.toFixed(2)}</span></div>}
             {item.notes&&<div style={{fontSize:12,color:T.sub,marginBottom:10,padding:"8px 10px",background:T.badge,borderRadius:8,border:`1px solid ${T.badgeBorder}`,lineHeight:1.5}}>📝 {item.notes}</div>}
             {item.expiryDate&&(()=>{
@@ -604,7 +605,9 @@ function ManagerButton({isManager,isDev,isDark,onSignIn,onSignOut}){
 }
 
 // ── HomeGrid ──────────────────────────────────────────────────────────────────
-function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef,bannerOffset=0}){
+function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSignOut,onToggleTheme,setItems,hasShownWelcomeRef,bannerOffset=0,onDevUnlock}){
+  const tapCountRef=useRef(0);
+  const tapTimerRef=useRef(null);
   const [search,setSearch]=useState("");
   const [searchResults,setSearchResults]=useState([]);
   const [showExport,setShowExport]=useState(false);
@@ -656,7 +659,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
   }
 
   return(
-    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:bannerOffset}}>
+    <div style={{minHeight:"100vh",background:isDark?"#080b12":"#f0f0e8",color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",paddingTop:bannerOffset,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -689,7 +692,12 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
 
       {/* Header */}
       <div style={{padding:"24px 16px 16px",background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:isDark?"1px solid #141c2c":"1px solid #d8d8c8"}}>
-        <div style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
+        <div onClick={()=>{
+          tapCountRef.current+=1;
+          clearTimeout(tapTimerRef.current);
+          if(tapCountRef.current>=3){tapCountRef.current=0;onDevUnlock&&onDevUnlock();return;}
+          tapTimerRef.current=setTimeout(()=>{tapCountRef.current=0;},600);
+        }} style={{fontSize:10,color:isDark?"#3a4a60":"#909080",letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4,cursor:"default",userSelect:"none"}}>{"Gil's Grocery"}</div>
         <div style={{display:"flex",alignItems:"flex-end",justifyContent:"space-between",marginBottom:2}}>
           <div style={{fontSize:26,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a"}}>Price Manager</div>
           <div style={{display:"flex",gap:8,alignItems:"center"}}>
@@ -766,7 +774,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
           const count=items.filter(i=>i.category===cat.key).length;
           const oos=items.filter(i=>i.category===cat.key&&i.outOfStock).length;
           return(
-            <div key={cat.key} onClick={()=>onSelectCategory(cat)} className="cat-card"
+            <div key={cat.key} onClick={()=>onSelectCategory(cat)} className="cat-card cat-tap"
               style={{background:`linear-gradient(135deg,${cat.theme.card} 0%,${cat.theme.bg} 100%)`,border:`1px solid ${cat.theme.border}`,borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${idx*0.07}s both`}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:cat.theme.accent,borderRadius:"16px 16px 0 0",opacity:0.9}}/>
               <div style={{fontSize:26,marginBottom:8,animation:`fadeUp 0.35s ease ${idx*0.07+0.1}s both`}}>{cat.icon}</div>
@@ -781,7 +789,7 @@ function HomeGrid({items,onSelectCategory,isManager,isDev,isDark,onSignIn,onSign
           const recCount=items.filter(i=>i.gilliesRecommendation).length;
           return(
             <div onClick={()=>onSelectCategory({key:"recommendations",name:"Gillie's Recommendations",icon:"⭐",theme:{bg:"#120e00",header:"linear-gradient(160deg,#1e1800,#120e00)",accent:"#f0c040",accentText:"#0f1117",card:"#1a1400",border:"#3a2e00",sub:"#806040",badge:"#1e1800",badgeBorder:"#3a2e00",badgeText:"#c0a040",oosOverlay:"rgba(18,14,0,0.6)"},subcategories:[]})}
-              className="cat-card"
+              className="cat-card cat-tap"
               style={{gridColumn:"1 / -1",background:"linear-gradient(135deg,#1a1400 0%,#120e00 100%)",border:"1px solid #3a2e00",borderRadius:16,padding:"18px 14px",cursor:"pointer",position:"relative",overflow:"hidden",animation:`fadeUp 0.35s ease ${CATEGORIES.length*0.07}s both`}}>
               <div style={{position:"absolute",top:0,left:0,right:0,height:3,background:"#f0c040",borderRadius:"16px 16px 0 0",opacity:0.9}}/>
               <div style={{display:"flex",alignItems:"center",gap:14}}>
@@ -1025,7 +1033,7 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
   const accentColor=baseT.accent;
 
   return(
-    <div style={{minHeight:"100vh",background:T.bg,color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease"}}>
+    <div style={{minHeight:"100vh",background:T.bg,color:isDark?"#f0f0f0":"#1a1a1a",fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:110,transition:"background 0.4s ease",animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
@@ -1039,13 +1047,14 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
         .tap-btn:active{transform:scale(0.95);opacity:0.8;}
         .item-row{transition:box-shadow 0.15s ease;}
         .item-row:hover{box-shadow:0 4px 18px rgba(0,0,0,0.22);}
+        .form-input:focus{outline:none;box-shadow:0 0 0 2px var(--accent-glow,rgba(240,192,64,0.35));border-color:var(--accent-focus,rgba(240,192,64,0.7))!important;transition:box-shadow 0.2s ease,border-color 0.2s ease;}
         @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
       `}</style>
 
       {/* Confirm delete modal */}
       {confirmDelete&&(
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.8)",zIndex:400,display:"flex",alignItems:"center",justifyContent:"center",padding:24,animation:"fadeIn 0.2s ease"}}>
-          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:320,animation:"popIn 0.25s cubic-bezier(0.34,1.1,0.64,1)"}}>
+          <div style={{background:T.card,border:`1px solid ${T.border}`,borderRadius:16,padding:24,width:"100%",maxWidth:320,animation:"popInWobble 0.45s cubic-bezier(0.34,1.1,0.64,1)"}}>
             <div style={{fontSize:28,textAlign:"center",marginBottom:10}}>🗑️</div>
             <div style={{fontSize:17,fontWeight:700,color:isDark?"#f0f0f0":"#1a1a1a",marginBottom:8,textAlign:"center"}}>
               {confirmDelete.ids?"Delete Items?":"Delete Item?"}
@@ -1271,8 +1280,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 {form.inventory!==""&&parseInt(form.inventory)===0&&<div style={{fontSize:11,color:"#e74c3c",marginTop:2}}>Auto-set because inventory is 0</div>}
               </div>
               <button onClick={()=>setForm(f=>({...f,outOfStock:!f.outOfStock}))}
-                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.outOfStock?"#e74c3c":T.badge,position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.outOfStock?25:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.outOfStock?"#e74c3c":T.badge,position:"relative",transition:"background 0.22s cubic-bezier(0.34,1.1,0.64,1)",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.outOfStock?25:3,transition:"left 0.28s cubic-bezier(0.34,1.3,0.64,1)",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
               </button>
             </div>
 
@@ -1283,8 +1292,8 @@ function CategoryPage({category,items,setItems,onBack,isManager,isDev,onRequireM
                 <div style={{fontSize:11,color:isDark?"#3a4a60":"#909080",marginTop:2}}>Highlighted in the recommendations section</div>
               </div>
               <button onClick={()=>setForm(f=>({...f,gilliesRecommendation:!f.gilliesRecommendation}))}
-                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.gilliesRecommendation?"#f0c040":T.badge,position:"relative",transition:"background 0.2s",flexShrink:0}}>
-                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.gilliesRecommendation?25:3,transition:"left 0.2s",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
+                style={{width:48,height:26,borderRadius:13,border:"none",cursor:"pointer",background:form.gilliesRecommendation?"#f0c040":T.badge,position:"relative",transition:"background 0.22s cubic-bezier(0.34,1.1,0.64,1)",flexShrink:0}}>
+                <div style={{width:20,height:20,borderRadius:10,background:"#fff",position:"absolute",top:3,left:form.gilliesRecommendation?25:3,transition:"left 0.28s cubic-bezier(0.34,1.3,0.64,1)",boxShadow:"0 1px 4px rgba(0,0,0,0.3)"}}/>
               </button>
             </div>
 
@@ -1525,7 +1534,7 @@ function DevPage({isDev,onUnlock,auditLog=[],taxRate=DEFAULT_TAX_RATE,onTaxRateC
     </div>
   );
   return(
-    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:DT.appBg,fontFamily:"'Courier New',Courier,monospace",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <div style={{background:DT.headerBg,borderBottom:`1px solid ${DT.cardBorder}`,padding:"16px 16px 14px"}}>
         <div style={{fontSize:10,color:DT.subText,letterSpacing:"0.15em",marginBottom:3}}>// developer console</div>
         <div style={{fontSize:20,fontWeight:700,color:DT.accent,letterSpacing:"0.05em",marginBottom:8}}>DEV MODE</div>
@@ -1973,7 +1982,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
           {daySh.map((s,idx)=>{
             const hrs=parseHours(s.startTime,s.endTime);
             return(
-              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`fadeUp 0.22s ease ${idx*0.05}s both`,transition:"box-shadow 0.15s ease",cursor:"default"}}>
+              <div key={s.id||idx} style={{background:card,border:`1px solid ${border}`,borderRadius:12,padding:14,marginBottom:10,animation:`pageEnter 0.25s cubic-bezier(0.34,1.1,0.64,1) ${idx*0.06}s both`,cursor:"default"}}>
                 <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:s.notes?6:0}}>
                   <div style={{width:32,height:32,borderRadius:"50%",background:nameColor(s.name,isDark?30:70),display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                     <span style={{fontSize:13,fontWeight:700,color:nameColor(s.name,isDark?80:20)}}>{s.name.trim()[0]?.toUpperCase()||"?"}</span>
@@ -2002,7 +2011,7 @@ function SchedulePage({isManager,isDark,onUnlock,storeHours=DEFAULT_HOURS}){
 
   // ── Month calendar view ────────────────────────────────────────────────────
   return(
-    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
@@ -2234,7 +2243,7 @@ function CashPage({isDark,taxRate=DEFAULT_TAX_RATE}){
   const taxTotal=taxInput?parseFloat(taxInput)+(taxMode==="add"?taxAmt:-taxAmt):0;
 
   return(
-    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"'Georgia','Times New Roman',serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`
         @keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
         .calc-btn{transition:transform 0.08s ease;}
@@ -2528,7 +2537,7 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
     const done=list.items.filter(i=>i.done).length;
     const pct=list.items.length?Math.round(done/list.items.length*100):0;
     return(
-      <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+      <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
         <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
         <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"16px 14px"}}>
           <div style={{display:"flex",alignItems:"center",gap:10}}>
@@ -2578,7 +2587,7 @@ function ChecklistsPage({isDev,isDark,onUnlock}){
 
   // ── List view ──────────────────────────────────────────────────────────────
   return(
-    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
         <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>{"Gil's Grocery"}</div>
@@ -2708,7 +2717,7 @@ function SuggestionsPage({isDark,isManager}){
   const cats=["Feature","Improvement","Other"];
 
   return(
-    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
         <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
@@ -2801,7 +2810,7 @@ function UpdateLogPage({isDark,isDev}){
   }
 
   return(
-    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80}}>
+    <div style={{minHeight:"100vh",background:bg,fontFamily:"Georgia,serif",paddingBottom:80,animation:"pageEnter 0.28s cubic-bezier(0.34,1.1,0.64,1)"}}>
       <style>{`@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}} @keyframes slideDown{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
       <div style={{background:isDark?"linear-gradient(160deg,#0f1320,#080b12)":"linear-gradient(160deg,#e8e8d8,#f0f0e8)",borderBottom:`1px solid ${border}`,padding:"20px 14px 14px"}}>
         <div style={{fontSize:10,color:sub,letterSpacing:"0.2em",textTransform:"uppercase",marginBottom:4}}>Gil's Grocery</div>
@@ -2857,35 +2866,143 @@ function UpdateLogPage({isDark,isDev}){
 }
 
 
-function BottomNav({page,setPage,activeCategoryTheme,isDark}){
-  const bg=page==="dev"?DT.appBg:isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
-  const borderColor=page==="dev"?DT.cardBorder:isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
-  // Split into two rows of 4
-  const row1=[{id:"pricing",label:"Pricing",icon:"🏷️"},{id:"schedule",label:"Schedule",icon:"📅"},{id:"cash",label:"Cash",icon:"💵"},{id:"checklists",label:"Lists",icon:"📋"}];
-  const row2=[{id:"suggestions",label:"Ideas",icon:"💡"},{id:"updates",label:"Updates",icon:"📋"},{id:"bugs",label:"Bugs",icon:"🐛"},{id:"dev",label:"Dev",icon:"👨‍💻"}];
-  const allRows=[row1,row2];
-  function TabBtn({tab}){
-    const isActive=page===tab.id;
-    const accentColor=tab.id==="dev"?DT.accent:activeCategoryTheme?.accent||"#f0c040";
-    const textColor=isActive?accentColor:isDark?"#3a4a60":"#909080";
-    return(
-      <button onClick={()=>setPage(tab.id)} style={{flex:1,padding:"7px 0 8px",background:"none",border:"none",cursor:"pointer",fontFamily:tab.id==="dev"?"'Courier New',monospace":"inherit",display:"flex",flexDirection:"column",alignItems:"center",gap:2,opacity:isActive?1:0.45,transition:"opacity 0.2s"}}>
-        <span style={{fontSize:18}}>{tab.icon}</span>
-        <span style={{fontSize:9,fontWeight:700,letterSpacing:tab.id==="dev"?"0.08em":"0.03em",color:textColor,textTransform:"uppercase"}}>{tab.id==="dev"?"[DEV]":tab.label}</span>
-        {isActive&&<div style={{width:16,height:2,borderRadius:2,background:accentColor}}/>}
-      </button>
-    );
-  }
+// ── BottomNav — morphing pill + More tray ────────────────────────────────────
+function BottomNav({page,setPage,activeCategoryTheme,isDark,onMoreOpen}){
+  const bg=isDark?(activeCategoryTheme?.bg||"#080b12"):"#f0f0e8";
+  const borderColor=isDark?(activeCategoryTheme?.border||"#141c2c"):"#d8d8c8";
+  const accent=activeCategoryTheme?.accent||"#f0c040";
+  const mainTabs=[
+    {id:"pricing", label:"Pricing",  icon:"🏷️"},
+    {id:"schedule",label:"Schedule", icon:"📅"},
+    {id:"cash",    label:"Cash",     icon:"💵"},
+    {id:"checklists",label:"Lists",  icon:"📋"},
+  ];
+  const moreActive=["suggestions","updates","bugs","dev"].includes(page);
   return(
-    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,zIndex:150,transition:"background 0.3s"}}>
-      {allRows.map((row,ri)=>(
-        <div key={ri} style={{display:"flex",borderBottom:ri===0?`1px solid ${borderColor}`:"none"}}>
-          {row.map(tab=><TabBtn key={tab.id} tab={tab}/>)}
-        </div>
-      ))}
+    <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,background:bg,borderTop:`1px solid ${borderColor}`,zIndex:150,transition:"background 0.3s",paddingBottom:"env(safe-area-inset-bottom)"}}>
+      <style>{`
+        @keyframes navPop{0%{transform:scale(0.82)}60%{transform:scale(1.08)}100%{transform:scale(1)}}
+        @keyframes labelIn{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+        .nav-morph-btn{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;position:relative;transition:opacity 0.2s;}
+      `}</style>
+      <div style={{display:"flex",alignItems:"center",padding:"6px 8px 8px",gap:4,position:"relative"}}>
+        {mainTabs.map(tab=>{
+          const isActive=page===tab.id;
+          return(
+            <button key={tab.id} className="nav-morph-btn"
+              onClick={()=>setPage(tab.id)}
+              style={{flex:isActive?1.6:1,padding:isActive?"8px 10px":"8px 6px",borderRadius:14,
+                background:isActive?accent:"transparent",
+                transition:"flex 0.35s cubic-bezier(0.34,1.1,0.64,1), background 0.25s ease, padding 0.35s cubic-bezier(0.34,1.1,0.64,1)",
+                overflow:"hidden",height:44,
+              }}>
+              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:isActive?6:0,
+                transition:"gap 0.35s cubic-bezier(0.34,1.1,0.64,1)",
+              }}>
+                <span style={{fontSize:18,lineHeight:1,
+                  filter:isActive?"none":"opacity(0.45)",
+                  transition:"filter 0.2s, transform 0.35s cubic-bezier(0.34,1.3,0.64,1)",
+                  transform:isActive?"scale(1.05)":"scale(1)",
+                  display:"block",
+                }}>{tab.icon}</span>
+                <span style={{
+                  fontSize:11,fontWeight:700,letterSpacing:"0.03em",textTransform:"uppercase",
+                  color:isActive?"#0f1117":"transparent",
+                  maxWidth:isActive?60:0,
+                  overflow:"hidden",whiteSpace:"nowrap",
+                  transition:"max-width 0.35s cubic-bezier(0.34,1.1,0.64,1), color 0.2s",
+                  animation:isActive?"labelIn 0.25s ease 0.1s both":"none",
+                }}>{tab.label}</span>
+              </div>
+            </button>
+          );
+        })}
+        {/* More button */}
+        <button className="nav-morph-btn"
+          onClick={onMoreOpen}
+          style={{flex:moreActive?1.6:1,padding:moreActive?"8px 10px":"8px 6px",borderRadius:14,
+            background:moreActive?"#7c83fd":"transparent",
+            transition:"flex 0.35s cubic-bezier(0.34,1.1,0.64,1), background 0.25s ease, padding 0.35s cubic-bezier(0.34,1.1,0.64,1)",
+            height:44,overflow:"hidden",
+          }}>
+          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:moreActive?6:0,
+            transition:"gap 0.35s cubic-bezier(0.34,1.1,0.64,1)",
+          }}>
+            <span style={{fontSize:18,lineHeight:1,
+              filter:moreActive?"none":"opacity(0.45)",
+              transform:moreActive?"scale(1.05)":"scale(1)",
+              transition:"filter 0.2s, transform 0.35s cubic-bezier(0.34,1.3,0.64,1)",
+              display:"block",
+            }}>☰</span>
+            <span style={{
+              fontSize:11,fontWeight:700,letterSpacing:"0.03em",textTransform:"uppercase",
+              color:moreActive?"#fff":"transparent",
+              maxWidth:moreActive?50:0,overflow:"hidden",whiteSpace:"nowrap",
+              transition:"max-width 0.35s cubic-bezier(0.34,1.1,0.64,1), color 0.2s",
+              animation:moreActive?"labelIn 0.25s ease 0.1s both":"none",
+            }}>More</span>
+          </div>
+        </button>
+      </div>
     </div>
   );
 }
+
+// ── More tray ─────────────────────────────────────────────────────────────────
+function MoreTray({open,onClose,page,setPage,isDark,isDev}){
+  if(!open)return null;
+  const bg=isDark?"#0f1525":"#ffffff";
+  const border=isDark?"#1e2a40":"#d0d0c0";
+  const text=isDark?"#f0f0f0":"#1a1a1a";
+  const sub=isDark?"#3a4a60":"#909080";
+  const items=[
+    {id:"suggestions",label:"Ideas & Suggestions",icon:"💡",desc:"Submit feature requests"},
+    {id:"updates",    label:"Update Log",          icon:"🗒️",desc:"See what's changed"},
+    {id:"bugs",       label:"Bug Reports",          icon:"🐛",desc:"Report or view issues"},
+  ];
+  if(isDev)items.push({id:"dev",label:"Developer Console",icon:"👨‍💻",desc:"System settings & logs",accent:true});
+  return(
+    <>
+      {/* Backdrop */}
+      <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:160,animation:"fadeIn 0.2s ease"}}/>
+      {/* Tray */}
+      <div style={{position:"fixed",bottom:0,left:"50%",transform:"translateX(-50%)",width:"100%",maxWidth:480,
+        background:bg,borderRadius:"20px 20px 0 0",border:`1px solid ${border}`,
+        zIndex:161,padding:"12px 16px 32px",
+        animation:"trayUp 0.32s cubic-bezier(0.34,1.1,0.64,1)",
+      }}>
+        <style>{`@keyframes trayUp{from{transform:translateX(-50%) translateY(100%)}to{transform:translateX(-50%) translateY(0)}} @keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
+        {/* Handle */}
+        <div style={{width:36,height:4,borderRadius:2,background:isDark?"#1e2a40":"#d0d0c0",margin:"0 auto 16px"}}/>
+        <div style={{fontSize:11,color:sub,letterSpacing:"0.12em",textTransform:"uppercase",marginBottom:10,paddingLeft:4}}>More</div>
+        {items.map((item,_mi)=>{
+          const isActive=page===item.id;
+          return(
+            <button key={item.id} onClick={()=>{setPage(item.id);onClose();}}
+              style={{width:"100%",display:"flex",alignItems:"center",gap:14,padding:"13px 14px",
+                background:isActive?(item.accent?"#00d4ff18":"#7c83fd18"):"transparent",
+                border:`1px solid ${isActive?(item.accent?"#00d4ff44":"#7c83fd44"):border}`,
+                borderRadius:12,marginBottom:8,cursor:"pointer",fontFamily:"inherit",
+                transition:"all 0.15s",
+                animation:`staggerFadeIn 0.25s cubic-bezier(0.34,1.1,0.64,1) ${_mi*0.07}s both`,
+              }}>
+              <div style={{width:40,height:40,borderRadius:10,
+                background:isActive?(item.accent?"#00d4ff22":"#7c83fd22"):isDark?"#0a0f1e":"#f4f4f0",
+                display:"flex",alignItems:"center",justifyContent:"center",fontSize:20,flexShrink:0,
+              }}>{item.icon}</div>
+              <div style={{flex:1,textAlign:"left"}}>
+                <div style={{fontSize:14,fontWeight:600,color:isActive?(item.accent?"#00d4ff":"#7c83fd"):text}}>{item.label}</div>
+                <div style={{fontSize:11,color:sub,marginTop:1}}>{item.desc}</div>
+              </div>
+              <span style={{fontSize:16,color:sub}}>›</span>
+            </button>
+          );
+        })}
+      </div>
+    </>
+  );
+}
+
 
 // ── Root App ──────────────────────────────────────────────────────────────────
 export default function App(){
@@ -2899,13 +3016,14 @@ export default function App(){
   const [pinInput,setPinInput]=useState("");
   const [pinError,setPinError]=useState(false);
   const [isDark,setIsDark]=useState(()=>loadTheme()==="dark");
-  const [auditLog,setAuditLog]=useState([]);
+  const [auditLog,setAuditLog]=useState(()=>{try{const s=localStorage.getItem("audit_log");return s?JSON.parse(s):[];}catch{return[];}});
   const [taxRate,setTaxRate]=useState(DEFAULT_TAX_RATE);
   const [loading,setLoading]=useState(true);
   const [managerDisabled,setManagerDisabled]=useState(false);
   const [showMgrDisabledModal,setShowMgrDisabledModal]=useState(false);
   const [storeHours,setStoreHours]=useState(DEFAULT_HOURS);
-  const [activeNotif,setActiveNotif]=useState(null); // {message, color, expiresAt} or null
+  const [activeNotif,setActiveNotif]=useState(null);
+  const [showMore,setShowMore]=useState(false);
 
   // Load items and settings from Supabase on mount
   useEffect(()=>{
@@ -2942,19 +3060,6 @@ export default function App(){
         } else if(storedYear===0){
           localStorage.setItem("shifts_year",String(thisYear));
         }
-        // Load audit log from Supabase (last 10, newest first)
-        const {data:auditData}=await sb.from("audit_log").select("*").order("created_at",{ascending:false}).limit(10);
-        if(auditData&&auditData.length>0){
-          setAuditLog(auditData.map(row=>({
-            id:row.id,action:row.action,itemName:row.item_name,
-            category:row.category,subcategory:row.subcategory,
-            price:row.price,details:row.details||"",
-            timestamp:new Date(row.created_at),
-            role:row.role,
-            snapshot:row.snapshot?JSON.parse(row.snapshot):null,
-            itemId:row.item_id,
-          })));
-        }
         // Load active notification
         const notif=await fetchActiveNotif();
         if(notif&&notif.expiresAt&&new Date(notif.expiresAt)>new Date()){
@@ -2972,41 +3077,22 @@ export default function App(){
 
   const MANAGER_PIN="3018",DEV_PIN="130654";
 
-  async function addAuditEntry(entry){
-    const snap=entry.snapshot?JSON.stringify({
-      id:entry.snapshot.id,name:entry.snapshot.name,category:entry.snapshot.category,
-      subcategory:entry.snapshot.subcategory,price:entry.snapshot.price,
-      location:entry.snapshot.location,notes:entry.snapshot.notes,
-      inventory:entry.snapshot.inventory,outOfStock:entry.snapshot.outOfStock,
-      mapZone:entry.snapshot.mapZone,expiryDate:entry.snapshot.expiryDate,
-      packSize:entry.snapshot.packSize,containerType:entry.snapshot.containerType,
-      deposit:entry.snapshot.deposit,wineType:entry.snapshot.wineType,
-      gilliesRecommendation:entry.snapshot.gilliesRecommendation,
-    }):null;
-    // Write to Supabase
-    const {data:newRow}=await sb.from("audit_log").insert({
-      action:entry.action,
-      item_name:entry.itemName,
-      category:entry.category,
-      subcategory:entry.subcategory,
-      price:entry.price,
-      details:entry.details||"",
-      role:entry.role,
-      snapshot:snap,
-      item_id:entry.itemId||null,
-      created_at:new Date().toISOString(),
-    }).select().single();
-    // Update local state
-    const localEntry={...entry,id:newRow?.id||entry.id,snapshot:entry.snapshot};
-    setAuditLog(prev=>[localEntry,...prev].slice(0,10));
-    // Auto-delete oldest if over 10 (keep storage lean)
-    sb.from("audit_log").select("id",{count:"exact"}).then(({count})=>{
-      if(count>10){
-        sb.from("audit_log").select("id").order("created_at",{ascending:true}).limit(count-10)
-          .then(({data:old})=>{
-            if(old&&old.length)sb.from("audit_log").delete().in("id",old.map(r=>r.id));
-          });
-      }
+  function addAuditEntry(entry){
+    setAuditLog(prev=>{
+      const snap=entry.snapshot?{
+        id:entry.snapshot.id,name:entry.snapshot.name,category:entry.snapshot.category,
+        subcategory:entry.snapshot.subcategory,price:entry.snapshot.price,
+        location:entry.snapshot.location,notes:entry.snapshot.notes,
+        inventory:entry.snapshot.inventory,outOfStock:entry.snapshot.outOfStock,
+        mapZone:entry.snapshot.mapZone,expiryDate:entry.snapshot.expiryDate,
+        packSize:entry.snapshot.packSize,containerType:entry.snapshot.containerType,
+        deposit:entry.snapshot.deposit,wineType:entry.snapshot.wineType,
+        gilliesRecommendation:entry.snapshot.gilliesRecommendation,
+      }:null;
+      const serialized={...entry,timestamp:entry.timestamp instanceof Date?entry.timestamp.toISOString():entry.timestamp,snapshot:snap};
+      const next=[serialized,...prev].slice(0,10);
+      try{localStorage.setItem("audit_log",JSON.stringify(next));}catch{}
+      return next;
     });
   }
 
@@ -3036,19 +3122,25 @@ export default function App(){
     <div style={{maxWidth:480,margin:"0 auto",position:"relative"}}>
       <style>{`
         @keyframes popIn{0%{opacity:0;transform:scale(0.85)}70%{transform:scale(1.04)}100%{opacity:1;transform:scale(1)}}
+        @keyframes popInWobble{0%{opacity:0;transform:scale(0.85)}55%{transform:scale(1.06)}72%{transform:scale(0.97)}85%{transform:scale(1.02)}100%{opacity:1;transform:scale(1)}}
         @keyframes bannerSlide{from{opacity:0;transform:translateY(-100%)}to{opacity:1;transform:translateY(0)}}
         @keyframes fadeIn{from{opacity:0}to{opacity:1}}
         @keyframes slideDown{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}
         @keyframes modalIn{from{opacity:0;transform:scale(0.95) translateY(8px)}to{opacity:1;transform:scale(1) translateY(0)}}
+        @keyframes pageEnter{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes staggerFadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes loadTextIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+        @keyframes floorFlash{0%{opacity:1}40%{opacity:0.4}100%{opacity:1}}
         .tap-btn{transition:transform 0.1s ease,opacity 0.12s;}
         .tap-btn:active{transform:scale(0.95);opacity:0.8;}
+        .cat-tap:active{transform:scale(0.96)!important;transition:transform 0.08s ease!important;}
       `}</style>
       {/* Loading screen */}
       {loading&&(
         <div style={{position:"fixed",inset:0,background:"#080b12",zIndex:999,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",gap:16}}>
           <div style={{fontSize:40,animation:"popIn 0.5s cubic-bezier(0.34,1.3,0.64,1)"}}>🏪</div>
-          <div style={{fontSize:16,fontWeight:700,color:"#f0c040",fontFamily:"'Georgia',serif"}}>Gil's Grocery</div>
-          <div style={{fontSize:12,color:"#3a4a60",letterSpacing:"0.1em",textTransform:"uppercase"}}>Loading…</div>
+          <div style={{fontSize:16,fontWeight:700,color:"#f0c040",fontFamily:"'Georgia',serif",animation:"loadTextIn 0.4s ease 0.2s both"}}>Gil's Grocery</div>
+          <div style={{fontSize:12,color:"#3a4a60",letterSpacing:"0.1em",textTransform:"uppercase",animation:"loadTextIn 0.4s ease 0.35s both"}}>Loading…</div>
         </div>
       )}
       {/* Manager Disabled Modal */}
@@ -3101,7 +3193,7 @@ export default function App(){
       {page==="pricing"&&(
         selectedCategory
           ?<CategoryPage category={selectedCategory} items={items} setItems={setItems} onBack={()=>{setSelectedCategory(null);setScrollToItem(null);}} isManager={isManager} isDev={isDev} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)} isDark={isDark} onToggleTheme={toggleTheme} onAuditLog={addAuditEntry} scrollToItem={scrollToItem} bannerOffset={bannerOffset}/>
-          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset}/>
+          :<HomeGrid items={items} setItems={setItems} onSelectCategory={(cat,itemId)=>{setSelectedCategory(cat);setScrollToItem(itemId||null);}} isManager={isManager} isDev={isDev} isDark={isDark} onSignIn={()=>setShowPinModal(true)} onSignOut={logout} onToggleTheme={toggleTheme} hasShownWelcomeRef={hasShownWelcomeRef} bannerOffset={bannerOffset} onDevUnlock={()=>setShowPinModal(true)}/>
       )}
       {page==="schedule"&&<SchedulePage isManager={isManager} isDark={isDark} onUnlock={()=>setShowPinModal(true)} storeHours={storeHours} bannerOffset={bannerOffset}/>}
       {page==="cash"&&<CashPage isDark={isDark} taxRate={taxRate}/>}
@@ -3110,7 +3202,8 @@ export default function App(){
       {page==="updates"&&<UpdateLogPage isDark={isDark} isDev={isDev}/>}
       {page==="bugs"&&<div style={{minHeight:"100vh",background:"#0a0a1a",paddingBottom:80}}><BugsPage T={bugsT} isManager={isManager} managerDisabled={managerDisabled} onRequireManager={()=>managerDisabled&&!isDev?setShowMgrDisabledModal(true):setShowPinModal(true)}/></div>}
       {page==="dev"&&<DevPage isDev={isDev} onUnlock={()=>setShowPinModal(true)} auditLog={auditLog} taxRate={taxRate} onTaxRateChange={r=>{setTaxRate(r);saveTaxRate(r);}} managerDisabledProp={managerDisabled} onManagerDisabledChange={v=>{setManagerDisabled(v);if(v&&isManager&&!isDev){setIsManager(false);try{sessionStorage.removeItem("isManager");}catch{}}}} storeHours={storeHours} onStoreHoursChange={h=>{setStoreHours(h);saveStoreHours(h);}} setItems={setItems} activeNotif={activeNotif} onNotifChange={setActiveNotif}/>}      <CustomerCounter/>
-      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark}/>
+      <MoreTray open={showMore} onClose={()=>setShowMore(false)} page={page} setPage={handlePageChange} isDark={isDark} isDev={isDev}/>
+      <BottomNav page={page} setPage={handlePageChange} activeCategoryTheme={activeCatTheme} isDark={isDark} onMoreOpen={()=>setShowMore(true)}/>
     </div>
   );
 }
